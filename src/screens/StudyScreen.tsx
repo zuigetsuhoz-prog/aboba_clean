@@ -1,15 +1,36 @@
-import { useState } from 'react';
-import { db, type Word } from '../db';
+import { useState, useMemo } from 'react';
+import { db, type Word, getWordsForList, stripTones } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { FlashcardScreen } from './FlashcardScreen';
-import type { AISettings } from '../types';
+import { useT } from '../i18n';
+import type { AISettings, Lang } from '../types';
 
 interface Props {
   aiSettings: AISettings;
+  lang: Lang;
   onOpenSettings: () => void;
 }
 
-export function StudyScreen({ aiSettings, onOpenSettings }: Props) {
+function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      className={`relative w-11 h-6 rounded-full transition-colors focus:outline-none
+                  ${on ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+      role="switch"
+      aria-checked={on}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow
+                    transition-transform duration-200
+                    ${on ? 'translate-x-5' : 'translate-x-0'}`}
+      />
+    </button>
+  );
+}
+
+export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
+  const t = useT(lang);
   const [selectedLists, setSelectedLists] = useState<Set<number>>(new Set());
   const [limitN, setLimitN] = useState('');
   const [pinyinFilter, setPinyinFilter] = useState('');
@@ -18,12 +39,25 @@ export function StudyScreen({ aiSettings, onOpenSettings }: Props) {
   const [session, setSession] = useState<Word[] | null>(null);
 
   const lists = useLiveQuery(() => db.wordLists.orderBy('name').toArray(), []);
-  const allWords = useLiveQuery<Word[]>(
-    () => selectedLists.size > 0
-      ? db.words.where('listId').anyOf([...selectedLists]).sortBy('confidence')
-      : Promise.resolve([] as Word[]),
-    [selectedLists]
-  );
+
+  // Fetch all words from selected lists via junction table
+  const allWords = useLiveQuery<Word[]>(async () => {
+    if (selectedLists.size === 0) return [];
+    const words = await Promise.all(
+      [...selectedLists].map(id => getWordsForList(id)),
+    );
+    // Deduplicate by word id (a word might be in multiple selected lists)
+    const seen = new Set<number>();
+    const flat: Word[] = [];
+    for (const arr of words) {
+      for (const w of arr) {
+        if (!seen.has(w.id!)) { seen.add(w.id!); flat.push(w); }
+      }
+    }
+    // Sort by confidence ascending (weakest first) as default
+    flat.sort((a, b) => a.confidence - b.confidence);
+    return flat;
+  }, [selectedLists]);
 
   const toggleList = (id: number) => {
     setSelectedLists(prev => {
@@ -34,22 +68,24 @@ export function StudyScreen({ aiSettings, onOpenSettings }: Props) {
     });
   };
 
-  const filteredPreview = (() => {
+  // Use useMemo for filtered preview so shuffle is stable on each render
+  // (regenerated only when dependencies change, not on every re-render)
+  const filteredPreview = useMemo(() => {
     if (!allWords) return [];
     let words = [...allWords];
 
     if (pinyinFilter.trim()) {
-      const f = pinyinFilter.trim().toLowerCase();
-      words = words.filter(w => w.pinyin.toLowerCase().startsWith(f));
+      const f = stripTones(pinyinFilter.trim());
+      words = words.filter(w => stripTones(w.pinyin).startsWith(f));
     }
 
     if (maxConfidence.trim()) {
-      const max = parseInt(maxConfidence);
+      const max = parseInt(maxConfidence, 10);
       if (!isNaN(max)) words = words.filter(w => w.confidence <= max);
     }
 
     if (limitN.trim()) {
-      const n = parseInt(limitN);
+      const n = parseInt(limitN, 10);
       if (!isNaN(n) && n > 0) words = words.slice(0, n);
     }
 
@@ -58,17 +94,20 @@ export function StudyScreen({ aiSettings, onOpenSettings }: Props) {
     }
 
     return words;
-  })();
+  // Intentionally include shuffle in deps so toggling regenerates the order
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allWords, pinyinFilter, maxConfidence, limitN, shuffle]);
 
   const startSession = () => {
     if (filteredPreview.length === 0) return;
-    setSession(filteredPreview);
+    setSession([...filteredPreview]);
   };
 
   if (session) {
     return (
       <FlashcardScreen
         words={session}
+        lang={lang}
         onExit={() => setSession(null)}
         aiSettings={aiSettings}
         onOpenSettings={onOpenSettings}
@@ -80,19 +119,17 @@ export function StudyScreen({ aiSettings, onOpenSettings }: Props) {
     <div className="flex flex-col h-full">
       <header className="px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700
                          sticky top-0 z-10">
-        <h1 className="text-lg font-bold text-gray-900 dark:text-white">🎴 New Study Session</h1>
+        <h1 className="text-lg font-bold text-gray-900 dark:text-white">{t.newSession}</h1>
       </header>
 
       <div className="flex-1 overflow-y-auto pb-32">
         {/* Source lists */}
         <section className="mt-4 px-4">
           <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-            Source Lists
+            {t.sourceLists}
           </h2>
           {!lists || lists.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500 italic">
-              No word lists. Go to Lists tab to create one.
-            </p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic">{t.noListsForStudy}</p>
           ) : (
             <div className="space-y-1">
               {lists.map(l => (
@@ -117,69 +154,44 @@ export function StudyScreen({ aiSettings, onOpenSettings }: Props) {
         {/* Filters */}
         <section className="mt-5 px-4">
           <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-            Filters
+            {t.filters}
           </h2>
-          <div className="space-y-3">
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-3 space-y-3">
-              <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
-                  First N words
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={limitN}
-                  onChange={e => setLimitN(e.target.value)}
-                  placeholder="All"
-                  className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
-                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                             focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
-                  Pinyin starts with
-                </label>
-                <input
-                  type="text"
-                  value={pinyinFilter}
-                  onChange={e => setPinyinFilter(e.target.value)}
-                  placeholder="e.g. zh, n"
-                  className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
-                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                             focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
-                  Max confidence
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={maxConfidence}
-                  onChange={e => setMaxConfidence(e.target.value)}
-                  placeholder="100"
-                  className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
-                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                             focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
-                  Random shuffle
-                </label>
-                <button
-                  onClick={() => setShuffle(s => !s)}
-                  className={`relative w-10 h-6 rounded-full transition-colors ${
-                    shuffle ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'
-                  }`}
-                >
-                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow
-                                    transition-transform ${shuffle ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                </button>
-              </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-3 space-y-3">
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+                {t.firstNWords}
+              </label>
+              <input type="number" min="1" value={limitN} onChange={e => setLimitN(e.target.value)}
+                placeholder={t.firstNPh}
+                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
+                           bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
+                           focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+                {t.pinyinStarts}
+              </label>
+              <input type="text" value={pinyinFilter} onChange={e => setPinyinFilter(e.target.value)}
+                placeholder={t.pinyinPh}
+                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
+                           bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
+                           focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+                {t.maxConfidence}
+              </label>
+              <input type="number" min="0" max="100" value={maxConfidence}
+                onChange={e => setMaxConfidence(e.target.value)} placeholder="100"
+                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
+                           bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
+                           focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+                {t.randomShuffle}
+              </label>
+              <Toggle on={shuffle} onToggle={() => setShuffle(s => !s)} />
             </div>
           </div>
         </section>
@@ -192,7 +204,9 @@ export function StudyScreen({ aiSettings, onOpenSettings }: Props) {
               <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                 {filteredPreview.length}
               </span>
-              <span className="text-sm text-indigo-600 dark:text-indigo-400 ml-1">words selected</span>
+              <span className="text-sm text-indigo-600 dark:text-indigo-400 ml-1">
+                {t.wordsSelected}
+              </span>
             </div>
           </div>
         )}
@@ -207,7 +221,7 @@ export function StudyScreen({ aiSettings, onOpenSettings }: Props) {
           className="w-full py-3.5 bg-indigo-600 disabled:opacity-40 text-white rounded-2xl
                      font-semibold text-base active:scale-95 transition-transform"
         >
-          Start Session →
+          {t.startSession}
         </button>
       </div>
     </div>

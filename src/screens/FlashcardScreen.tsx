@@ -1,152 +1,244 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { db, type Word } from '../db';
 import { AIModal } from '../components/AIModal';
+import { Modal } from '../components/Modal';
 import { useTTS } from '../hooks/useTTS';
-import type { AISettings, CardSide } from '../types';
+import { useT } from '../i18n';
+import type { AISettings, CardSide, Lang } from '../types';
 
 interface Props {
   words: Word[];
+  lang: Lang;
   onExit: () => void;
   aiSettings: AISettings;
   onOpenSettings: () => void;
 }
 
-type Direction = 'left' | 'right' | null;
+interface CardHistoryEntry {
+  wordIndex: number;
+  side: CardSide;
+  visitedSides: number[];
+  prevConfidence: number;
+  prevReviewCount: number;
+  wasRated: boolean;
+}
 
 const SIDE_LABELS: Record<CardSide, string> = { 0: '汉字', 1: 'Pīnyīn', 2: 'Translation' };
 
-export function FlashcardScreen({ words: initialWords, onExit, aiSettings, onOpenSettings }: Props) {
-  const [words] = useState<Word[]>(initialWords);
+export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings, onOpenSettings }: Props) {
+  const t = useT(lang);
+
+  // ── session state ─────────────────────────────────────────────────────────
+  const [words, setWords] = useState<Word[]>(initialWords);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [side, setSide] = useState<CardSide>(0);
   const [visitedSides, setVisitedSides] = useState<Set<number>>(new Set([0]));
-  const [_direction, setDirection] = useState<Direction>(null);
+  const [history, setHistory] = useState<CardHistoryEntry[]>([]);
+
+  // ── animation ─────────────────────────────────────────────────────────────
   const [animClass, setAnimClass] = useState('');
+  const animTimeout = useRef<number | undefined>(undefined);
+
+  // ── modals ────────────────────────────────────────────────────────────────
   const [showAI, setShowAI] = useState(false);
+  const [showNote, setShowNote] = useState(false);
+  const [noteText, setNoteText] = useState('');
+
+  // ── rating ────────────────────────────────────────────────────────────────
   const [ratingFeedback, setRatingFeedback] = useState('');
+  const [showRateNow, setShowRateNow] = useState(false); // user tapped "rate now"
 
   const { speak, supported: ttsSupported } = useTTS();
-  const animTimeout = useRef<number | undefined>(undefined);
 
   const currentWord = words[currentIndex];
   const allSidesVisited = visitedSides.size === 3;
+  const canRate = allSidesVisited || showRateNow;
 
-  const getSideContent = useCallback((s: CardSide, word: Word): string => {
-    return s === 0 ? word.hanzi : s === 1 ? word.pinyin : word.translation;
-  }, []);
+  const getContent = useCallback((s: CardSide, word: Word): string =>
+    s === 0 ? word.hanzi : s === 1 ? word.pinyin : word.translation, []);
 
+  // ── side navigation ───────────────────────────────────────────────────────
   const changeSide = useCallback((dir: 'right' | 'left') => {
     if (animClass) return;
-    const delta = dir === 'right' ? 1 : -1;
-    const newSide = ((side + delta + 3) % 3) as CardSide;
-
-    setDirection(dir);
+    const newSide = ((side + (dir === 'right' ? 1 : -1) + 3) % 3) as CardSide;
     setAnimClass(dir === 'right' ? 'slide-out-left' : 'slide-out-right');
-
     clearTimeout(animTimeout.current);
-    animTimeout.current = setTimeout(() => {
+    animTimeout.current = window.setTimeout(() => {
       setSide(newSide);
       setVisitedSides(prev => new Set([...prev, newSide]));
       setAnimClass(dir === 'right' ? 'slide-in-right' : 'slide-in-left');
-      setTimeout(() => setAnimClass(''), 250);
+      window.setTimeout(() => setAnimClass(''), 250);
     }, 200);
   }, [side, animClass]);
 
   const handleTap = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const pct = x / rect.width;
+    const pct = (e.clientX - e.currentTarget.getBoundingClientRect().left) / e.currentTarget.offsetWidth;
     if (pct < 0.45) changeSide('left');
     else if (pct > 0.55) changeSide('right');
-    // center 10% does nothing
   }, [changeSide]);
 
-  const handleSpeakCurrent = () => {
-    if (!ttsSupported) return;
-    const content = getSideContent(side, currentWord);
-    const lang = side === 0 || side === 1 ? 'zh-CN' : 'en-US';
-    speak(content, lang);
+  // ── TTS ───────────────────────────────────────────────────────────────────
+  const speakCurrent = () => {
+    if (!ttsSupported || !currentWord) return;
+    speak(getContent(side, currentWord), side === 2 ? 'en-US' : 'zh-CN');
   };
 
-  const applyRating = async (delta: number, label: string) => {
-    const newConfidence = Math.max(0, Math.min(100, currentWord.confidence + delta));
-    await db.words.update(currentWord.id!, {
-      confidence: newConfidence,
-      lastReviewed: Date.now(),
-      reviewCount: (currentWord.reviewCount || 0) + 1,
-    });
-
-    setRatingFeedback(label);
-    setTimeout(() => {
-      setRatingFeedback('');
-      goNext();
-    }, 600);
+  // ── notes modal ───────────────────────────────────────────────────────────
+  const openNote = () => {
+    setNoteText(currentWord?.notes ?? '');
+    setShowNote(true);
+  };
+  const saveNote = async () => {
+    if (!currentWord) return;
+    await db.words.update(currentWord.id!, { notes: noteText.trim() || undefined });
+    setWords(prev => prev.map((w, i) =>
+      i === currentIndex ? { ...w, notes: noteText.trim() || undefined } : w));
+    setShowNote(false);
   };
 
-  const goNext = () => {
-    if (currentIndex + 1 >= words.length) {
-      onExit();
-      return;
-    }
+  // ── advance to next card ──────────────────────────────────────────────────
+  const goNext = useCallback((histEntry: CardHistoryEntry | null) => {
+    if (histEntry) setHistory(prev => [...prev, histEntry]);
+    if (currentIndex + 1 >= words.length) { onExit(); return; }
     setAnimClass('slide-out-left');
     clearTimeout(animTimeout.current);
-    animTimeout.current = setTimeout(() => {
+    animTimeout.current = window.setTimeout(() => {
       setCurrentIndex(i => i + 1);
       setSide(0);
       setVisitedSides(new Set([0]));
+      setShowRateNow(false);
       setAnimClass('slide-in-right');
-      setTimeout(() => setAnimClass(''), 250);
+      window.setTimeout(() => setAnimClass(''), 250);
+    }, 200);
+  }, [currentIndex, words.length, onExit]);
+
+  // ── go back ───────────────────────────────────────────────────────────────
+  const goBack = async () => {
+    if (history.length === 0) return;
+    const entry = history[history.length - 1];
+    setHistory(prev => prev.slice(0, -1));
+
+    if (entry.wasRated) {
+      // Undo the confidence change
+      await db.words.update(words[entry.wordIndex].id!, {
+        confidence: entry.prevConfidence,
+        reviewCount: entry.prevReviewCount,
+        lastReviewed: undefined,
+      });
+      setWords(prev => prev.map((w, i) =>
+        i === entry.wordIndex
+          ? { ...w, confidence: entry.prevConfidence, reviewCount: entry.prevReviewCount }
+          : w));
+    }
+
+    setAnimClass('slide-out-right');
+    clearTimeout(animTimeout.current);
+    animTimeout.current = window.setTimeout(() => {
+      setCurrentIndex(entry.wordIndex);
+      setSide(entry.side);
+      setVisitedSides(new Set(entry.visitedSides));
+      setShowRateNow(false);
+      setRatingFeedback('');
+      setAnimClass('slide-in-left');
+      window.setTimeout(() => setAnimClass(''), 250);
     }, 200);
   };
 
-  useEffect(() => {
-    return () => clearTimeout(animTimeout.current);
-  }, []);
+  // ── rating ────────────────────────────────────────────────────────────────
+  const applyRating = async (delta: number, label: string) => {
+    if (!currentWord) return;
+    const prevConfidence = currentWord.confidence;
+    const prevReviewCount = currentWord.reviewCount;
+    const newConfidence = Math.max(0, Math.min(100, prevConfidence + delta));
 
+    await db.words.update(currentWord.id!, {
+      confidence: newConfidence,
+      lastReviewed: Date.now(),
+      reviewCount: prevReviewCount + 1,
+    });
+    setWords(prev => prev.map((w, i) =>
+      i === currentIndex ? { ...w, confidence: newConfidence, reviewCount: prevReviewCount + 1 } : w));
+
+    setRatingFeedback(label);
+    const hist: CardHistoryEntry = {
+      wordIndex: currentIndex,
+      side,
+      visitedSides: [...visitedSides],
+      prevConfidence,
+      prevReviewCount,
+      wasRated: true,
+    };
+    window.setTimeout(() => {
+      setRatingFeedback('');
+      goNext(hist);
+    }, 600);
+  };
+
+  useEffect(() => () => clearTimeout(animTimeout.current), []);
+
+  // ── completion screen ─────────────────────────────────────────────────────
   if (!currentWord) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
+      <div className="flex flex-col items-center justify-center h-full gap-4
+                      bg-gray-100 dark:bg-gray-900">
         <p className="text-5xl">🎉</p>
-        <p className="text-xl font-bold text-gray-900 dark:text-white">Session Complete!</p>
-        <button onClick={onExit} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold">
-          Done
+        <p className="text-xl font-bold text-gray-900 dark:text-white">{t.sessionComplete}</p>
+        <button onClick={onExit}
+          className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold">
+          {t.done}
         </button>
       </div>
     );
   }
 
-  const content = getSideContent(side, currentWord);
+  const content = getContent(side, currentWord);
 
   return (
     <div className="flex flex-col h-full bg-gray-100 dark:bg-gray-900">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800
+      <header className="flex items-center justify-between px-3 py-2 bg-white dark:bg-gray-800
                          border-b border-gray-200 dark:border-gray-700">
-        <button
-          onClick={onExit}
-          className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 font-medium
-                     active:bg-gray-100 dark:active:bg-gray-700 rounded-lg transition-colors"
-        >
-          ✕ Exit
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onExit}
+            className="px-2 py-1.5 text-sm text-gray-600 dark:text-gray-400 font-medium
+                       active:bg-gray-100 dark:active:bg-gray-700 rounded-lg"
+          >
+            {t.exitSession}
+          </button>
+          <button
+            onClick={goBack}
+            disabled={history.length === 0}
+            className="px-2 py-1.5 text-sm font-medium rounded-lg transition-opacity
+                       text-indigo-600 dark:text-indigo-400
+                       disabled:opacity-30 active:bg-indigo-50 dark:active:bg-indigo-900/20"
+          >
+            {t.back}
+          </button>
+        </div>
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-          Card {currentIndex + 1} / {words.length}
+          {t.cardProgress(currentIndex + 1, words.length)}
         </span>
-        <div className="flex gap-1">
+        <div className="flex gap-0.5">
+          <button
+            onClick={openNote}
+            className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors
+                        ${currentWord.notes
+                          ? 'text-amber-400'
+                          : 'text-gray-400 dark:text-gray-600'}`}
+          >
+            📝
+          </button>
           {ttsSupported && (
-            <button
-              onClick={handleSpeakCurrent}
+            <button onClick={speakCurrent}
               className="w-8 h-8 flex items-center justify-center rounded-full
-                         text-gray-500 active:bg-gray-100 dark:active:bg-gray-700 transition-colors"
-            >
+                         text-gray-500 active:bg-gray-100 dark:active:bg-gray-700">
               🔊
             </button>
           )}
-          <button
-            onClick={() => setShowAI(true)}
+          <button onClick={() => setShowAI(true)}
             className="w-8 h-8 flex items-center justify-center rounded-full
-                       text-gray-500 active:bg-gray-100 dark:active:bg-gray-700 transition-colors"
-          >
+                       text-gray-500 active:bg-gray-100 dark:active:bg-gray-700">
             ✨
           </button>
         </div>
@@ -154,24 +246,21 @@ export function FlashcardScreen({ words: initialWords, onExit, aiSettings, onOpe
 
       {/* Progress bar */}
       <div className="h-1 bg-gray-200 dark:bg-gray-700">
-        <div
-          className="h-full bg-indigo-500 transition-all duration-300"
-          style={{ width: `${((currentIndex + 1) / words.length) * 100}%` }}
-        />
+        <div className="h-full bg-indigo-500 transition-all duration-300"
+          style={{ width: `${((currentIndex + 1) / words.length) * 100}%` }} />
       </div>
 
       {/* Card area */}
       <div
-        className="flex-1 flex flex-col items-center justify-center px-4 select-none cursor-pointer relative overflow-hidden"
+        className="flex-1 flex flex-col items-center justify-center px-4 select-none
+                   cursor-pointer relative overflow-hidden"
         onClick={handleTap}
       >
-        {/* Left/right hints */}
         <div className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-300 dark:text-gray-700
-                        text-2xl font-thin pointer-events-none">‹</div>
+                        text-2xl pointer-events-none">‹</div>
         <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 dark:text-gray-700
-                        text-2xl font-thin pointer-events-none">›</div>
+                        text-2xl pointer-events-none">›</div>
 
-        {/* Side label */}
         <div className="mb-3">
           <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700
                            dark:text-indigo-300 rounded-full text-xs font-semibold">
@@ -179,7 +268,6 @@ export function FlashcardScreen({ words: initialWords, onExit, aiSettings, onOpe
           </span>
         </div>
 
-        {/* Card */}
         <div className={`w-full max-w-sm ${animClass}`}>
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-8 min-h-[180px]
                           flex flex-col items-center justify-center text-center">
@@ -189,14 +277,10 @@ export function FlashcardScreen({ words: initialWords, onExit, aiSettings, onOpe
               </p>
             )}
             {side === 1 && (
-              <p className="text-3xl text-indigo-600 dark:text-indigo-400 font-medium">
-                {content}
-              </p>
+              <p className="text-3xl text-indigo-600 dark:text-indigo-400 font-medium">{content}</p>
             )}
             {side === 2 && (
-              <p className="text-2xl text-gray-700 dark:text-gray-300 font-medium">
-                {content}
-              </p>
+              <p className="text-2xl text-gray-700 dark:text-gray-300 font-medium">{content}</p>
             )}
           </div>
         </div>
@@ -204,42 +288,35 @@ export function FlashcardScreen({ words: initialWords, onExit, aiSettings, onOpe
         {/* Side dots */}
         <div className="flex gap-2 mt-4">
           {([0, 1, 2] as CardSide[]).map(s => (
-            <div
-              key={s}
-              className={`w-2 h-2 rounded-full transition-colors ${
-                s === side
-                  ? 'bg-indigo-600'
-                  : visitedSides.has(s)
-                  ? 'bg-indigo-300 dark:bg-indigo-700'
-                  : 'bg-gray-300 dark:bg-gray-700'
-              }`}
-            />
+            <div key={s} className={`w-2 h-2 rounded-full transition-colors ${
+              s === side
+                ? 'bg-indigo-600'
+                : visitedSides.has(s)
+                ? 'bg-indigo-300 dark:bg-indigo-700'
+                : 'bg-gray-300 dark:bg-gray-700'}`} />
           ))}
         </div>
-
-        {/* Nav hint */}
         <p className="mt-2 text-xs text-gray-400 dark:text-gray-600 pointer-events-none">
-          Tap left/right to navigate sides
+          {t.tapHint}
         </p>
       </div>
 
-      {/* Rating buttons */}
-      <div className="px-4 pb-24 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+      {/* Rating / bottom area */}
+      <div className="px-4 pb-20 bg-white dark:bg-gray-800
+                      border-t border-gray-200 dark:border-gray-700">
         {ratingFeedback ? (
           <div className="py-4 text-center text-lg font-semibold text-gray-700 dark:text-gray-300 fade-in">
             {ratingFeedback}
           </div>
-        ) : allSidesVisited ? (
+        ) : canRate ? (
           <div className="py-3">
-            <p className="text-xs text-center text-gray-400 dark:text-gray-500 mb-2">
-              How well did you know this?
-            </p>
+            <p className="text-xs text-center text-gray-400 dark:text-gray-500 mb-2">{t.howWell}</p>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { label: '完美 Perfect', delta: 20, color: 'bg-green-500' },
-                { label: '调错 Tone/Stroke', delta: -5, color: 'bg-yellow-500' },
-                { label: '模糊 Vague', delta: -15, color: 'bg-orange-500' },
-                { label: '不知道 No idea', delta: -30, color: 'bg-red-500' },
+                { label: t.ratePerfect,  delta: 20,  color: 'bg-green-500' },
+                { label: t.rateTone,     delta: -5,  color: 'bg-yellow-500' },
+                { label: t.rateVague,    delta: -15, color: 'bg-orange-500' },
+                { label: t.rateNoIdea,   delta: -30, color: 'bg-red-500' },
               ].map(r => (
                 <button
                   key={r.label}
@@ -253,11 +330,48 @@ export function FlashcardScreen({ words: initialWords, onExit, aiSettings, onOpe
             </div>
           </div>
         ) : (
-          <div className="py-4 text-center text-xs text-gray-400 dark:text-gray-500">
-            See all 3 sides to rate this card
+          <div className="py-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-gray-400 dark:text-gray-500">{t.seeAllSides}</p>
+            <button
+              onClick={() => setShowRateNow(true)}
+              className="shrink-0 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg
+                         text-sm font-medium text-gray-700 dark:text-gray-300
+                         active:scale-95 transition-transform"
+            >
+              {t.rateNow}
+            </button>
           </div>
         )}
       </div>
+
+      {/* Note modal */}
+      {showNote && (
+        <Modal title={t.noteModalTitle} onClose={() => setShowNote(false)}>
+          <div className="space-y-3">
+            <p className="text-2xl font-medium text-gray-900 dark:text-white">
+              {currentWord.hanzi}
+              <span className="text-base text-indigo-500 ml-2">{currentWord.pinyin}</span>
+            </p>
+            <textarea
+              autoFocus
+              value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              placeholder={t.notesPlaceholder}
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
+                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                         focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+            />
+            <button
+              onClick={saveNote}
+              className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-medium
+                         active:scale-95 transition-transform"
+            >
+              {lang === 'ru' ? 'Сохранить' : 'Save'}
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {showAI && (
         <AIModal

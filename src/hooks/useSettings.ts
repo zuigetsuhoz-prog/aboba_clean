@@ -5,6 +5,7 @@ const SETTINGS_KEY = 'chinese_app_settings';
 
 const defaultSettings: AppSettings = {
   darkMode: false,
+  language: 'en',
   ai: {
     provider: 'openai',
     apiKey: '',
@@ -17,7 +18,13 @@ export function useSettings() {
   const [settings, setSettings] = useState<AppSettings>(() => {
     try {
       const stored = localStorage.getItem(SETTINGS_KEY);
-      return stored ? { ...defaultSettings, ...JSON.parse(stored) } : defaultSettings;
+      if (!stored) return defaultSettings;
+      const parsed = JSON.parse(stored) as Partial<AppSettings>;
+      return {
+        ...defaultSettings,
+        ...parsed,
+        ai: { ...defaultSettings.ai, ...(parsed.ai ?? {}) },
+      };
     } catch {
       return defaultSettings;
     }
@@ -25,6 +32,7 @@ export function useSettings() {
 
   useEffect(() => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    // Apply dark mode class to <html> so Tailwind `dark:` variant activates
     if (settings.darkMode) {
       document.documentElement.classList.add('dark');
     } else {
