@@ -72,7 +72,7 @@ export function ListsScreen({ aiSettings, lang, onOpenSettings }: Props) {
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-20">
+      <div className="flex-1 overflow-y-auto pb-6">
         {!lists || lists.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center px-8">
             <p className="text-5xl mb-3">📝</p>
@@ -80,12 +80,14 @@ export function ListsScreen({ aiSettings, lang, onOpenSettings }: Props) {
             <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">{t.noListsHint}</p>
           </div>
         ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+          <ul className="divide-y divide-gray-100 dark:divide-gray-800
+                         sm:grid sm:grid-cols-2 sm:divide-y-0 sm:gap-px sm:bg-gray-100 dark:sm:bg-gray-800
+                         lg:grid-cols-1 lg:gap-0 lg:bg-transparent dark:lg:bg-transparent lg:divide-y">
             {lists.map(list => (
               <li
                 key={list.id}
                 className="flex items-center px-4 py-3 bg-white dark:bg-gray-900
-                           active:bg-gray-50 dark:active:bg-gray-800 cursor-pointer"
+                           sm:min-h-[72px] active:bg-gray-50 dark:active:bg-gray-800 cursor-pointer"
                 onClick={() => { setSelectedList(list); setView('detail'); }}
               >
                 <div className="flex-1 min-w-0">

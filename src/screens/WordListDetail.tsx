@@ -209,7 +209,7 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
       )}
 
       {/* Word list */}
-      <div className="flex-1 overflow-y-auto pb-20">
+      <div className="flex-1 overflow-y-auto pb-6">
         {words.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center px-8">
             <p className="text-5xl mb-3">🈳</p>
@@ -217,10 +217,15 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
             <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">{t.noWordsHint}</p>
           </div>
         ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 lg:gap-2 lg:p-3">
             {words.map((word, idx) => (
-              <li key={word.id} className="bg-white dark:bg-gray-900">
-                <div className="flex items-start gap-2 px-4 py-3">
+              <div
+                key={word.id}
+                className="bg-white dark:bg-gray-900
+                           border-b border-gray-100 dark:border-gray-800
+                           lg:border lg:border-gray-200 dark:lg:border-gray-700 lg:rounded-xl"
+              >
+                <div className="flex items-start gap-2 px-4 py-3 lg:px-3">
                   {/* Index number */}
                   <span className="w-6 text-right text-xs text-gray-300 dark:text-gray-600
                                    font-mono mt-2 shrink-0 select-none">
@@ -335,16 +340,16 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
                     </div>
                   )}
                 </div>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
 
-      {/* Multi-select action bar */}
+      {/* Multi-select action bar — in-flow footer */}
       {selectMode && selected.size > 0 && (
-        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 py-3
-                        bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 z-20">
+        <div className="shrink-0 px-4 py-3 bg-white dark:bg-gray-900
+                        border-t border-gray-200 dark:border-gray-700">
           <div className="flex gap-2">
             <button
               onClick={() => setShowResetConfirm(true)}

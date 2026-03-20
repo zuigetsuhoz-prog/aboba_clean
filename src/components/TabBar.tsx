@@ -17,13 +17,14 @@ export function TabBar({ active, onSelect, lang }: Props) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50
-                    bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex">
+    <nav className="lg:hidden shrink-0 bg-white dark:bg-gray-900
+                    border-t border-gray-200 dark:border-gray-700 flex">
       {tabs.map(tab => (
         <button
           key={tab.id}
           onClick={() => onSelect(tab.id)}
-          className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5
+          className={`flex-1 flex flex-col items-center justify-center
+                      min-h-[56px] py-2 gap-0.5
                       text-xs font-medium transition-colors
                       ${active === tab.id
                         ? 'text-indigo-600 dark:text-indigo-400'

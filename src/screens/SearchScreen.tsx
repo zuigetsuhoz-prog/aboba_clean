@@ -69,7 +69,7 @@ export function SearchScreen({ lang, aiSettings, onOpenSettings }: Props) {
         />
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-20">
+      <div className="flex-1 overflow-y-auto pb-6">
         {!query.trim() ? (
           <div className="flex flex-col items-center justify-center h-48 text-center px-8">
             <p className="text-4xl mb-2">🔍</p>

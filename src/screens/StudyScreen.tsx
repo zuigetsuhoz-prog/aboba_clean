@@ -237,7 +237,7 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">{t.newSession}</h1>
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-32">
+      <div className="flex-1 overflow-y-auto pb-6">
         {/* Source lists */}
         <section className="mt-4 px-4">
           <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
@@ -390,9 +390,9 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
         )}
       </div>
 
-      {/* Start button */}
-      <div className="fixed bottom-16 left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 py-3
-                      bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
+      {/* Start button — in-flow footer, always visible at bottom of column */}
+      <div className="shrink-0 px-4 py-3 bg-white dark:bg-gray-900
+                      border-t border-gray-200 dark:border-gray-700">
         <button
           onClick={startSession}
           disabled={filteredPreview.length === 0}

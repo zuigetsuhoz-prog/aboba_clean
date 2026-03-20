@@ -146,10 +146,11 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">{t.settingsTitle}</h1>
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-24 space-y-6 py-4">
+      <div className="flex-1 overflow-y-auto pb-6">
+        <div className="py-4 space-y-6 xl:space-y-0 xl:grid xl:grid-cols-2 xl:gap-6 xl:p-6 xl:items-start">
 
         {/* Appearance */}
-        <section className="px-4">
+        <section className="px-4 xl:px-0">
           <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
             {t.appearance}
           </h2>
@@ -179,7 +180,7 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
         </section>
 
         {/* TTS */}
-        <section className="px-4">
+        <section className="px-4 xl:px-0">
           <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
             {t.tts}
           </h2>
@@ -203,7 +204,7 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
         </section>
 
         {/* AI Settings */}
-        <section className="px-4">
+        <section className="px-4 xl:px-0 xl:col-span-2">
           <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
             {t.aiIntegration}
           </h2>
@@ -263,7 +264,7 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
         </section>
 
         {/* Import / Export */}
-        <section className="px-4">
+        <section className="px-4 xl:px-0 xl:col-span-2">
           <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
             {t.importExport}
           </h2>
@@ -326,12 +327,13 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
         </section>
 
         {/* About */}
-        <section className="px-4">
+        <section className="px-4 xl:px-0 xl:col-span-2">
           <div className="bg-white dark:bg-gray-800 rounded-xl px-4 py-3 text-center">
             <p className="text-xl font-semibold text-gray-900 dark:text-white mb-1">BALBES files</p>
             <p className="text-xs text-gray-400 dark:text-gray-500">{t.about}</p>
           </div>
         </section>
+        </div>{/* end xl grid */}
       </div>
     </div>
   );

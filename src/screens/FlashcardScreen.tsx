@@ -4,6 +4,7 @@ import { AIModal } from '../components/AIModal';
 import { Modal } from '../components/Modal';
 import { useTTS } from '../hooks/useTTS';
 import { useT } from '../i18n';
+import { usePanelContent } from '../contexts/PanelContext';
 import type { AISettings, CardSide, Lang } from '../types';
 
 interface Props {
@@ -34,6 +35,7 @@ const RATINGS: { key: RatingKey; labelKey: 'ratePerfect' | 'rateTone' | 'rateVag
 
 export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings, onOpenSettings }: Props) {
   const t = useT(lang);
+  const setPanel = usePanelContent();
 
   // ── session state ─────────────────────────────────────────────────────────
   const [words, setWords] = useState<Word[]>(initialWords);
@@ -177,10 +179,54 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
 
   useEffect(() => () => clearTimeout(animTimeout.current), []);
 
+  // ── right panel: session word list ────────────────────────────────────────
+  useEffect(() => {
+    setPanel(
+      <div className="flex flex-col h-full overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+            {t.cardProgress(currentIndex + 1, words.length)}
+          </p>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {words.map((w, i) => (
+            <div
+              key={w.id}
+              className={`flex items-center gap-2 px-4 py-2.5
+                          border-b border-gray-100 dark:border-gray-800
+                          ${i === currentIndex
+                            ? 'bg-indigo-50 dark:bg-indigo-900/20'
+                            : ''}`}
+            >
+              <span className="w-5 text-right text-xs text-gray-400 dark:text-gray-600 shrink-0">
+                {i + 1}
+              </span>
+              <span className={`text-xl font-medium shrink-0
+                                ${i < currentIndex
+                                  ? 'text-gray-300 dark:text-gray-600'
+                                  : i === currentIndex
+                                    ? 'text-gray-900 dark:text-white'
+                                    : 'text-gray-500 dark:text-gray-400'}`}>
+                {w.hanzi}
+              </span>
+              <span className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                {w.translation}
+              </span>
+              {i === currentIndex && (
+                <span className="ml-auto text-indigo-500 text-xs shrink-0">▶</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>,
+    );
+    return () => setPanel(null);
+  }, [words, currentIndex, setPanel, t]);
+
   // ── completion screen ─────────────────────────────────────────────────────
   if (!currentWord) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4
+      <div className="flex flex-col items-center justify-center h-full gap-4 px-6
                       bg-gray-100 dark:bg-gray-900">
         <p className="text-5xl">🎉</p>
         <p className="text-xl font-bold text-gray-900 dark:text-white">{t.sessionComplete}</p>
@@ -269,8 +315,9 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
           </span>
         </div>
 
-        <div className={`w-full max-w-sm ${animClass}`}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-8 min-h-[180px]
+        <div className={`w-full max-w-sm sm:max-w-md lg:max-w-[520px] xl:max-w-[500px] ${animClass}`}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-8
+                          min-h-[180px] sm:min-h-[220px] lg:min-h-[240px]
                           flex flex-col items-center justify-center text-center">
             {side === 0 && (
               <p className="text-6xl font-medium text-gray-900 dark:text-white leading-tight">
@@ -301,7 +348,7 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
       </div>
 
       {/* Rating buttons — always visible */}
-      <div className="px-4 pb-20 bg-white dark:bg-gray-800
+      <div className="px-4 pb-4 sm:pb-6 bg-white dark:bg-gray-800
                       border-t border-gray-200 dark:border-gray-700">
         {ratingFeedback ? (
           <div className="py-4 text-center text-lg font-semibold text-gray-700 dark:text-gray-300 fade-in">
