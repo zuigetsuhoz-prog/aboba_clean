@@ -17,8 +17,10 @@ export function TabBar({ active, onSelect, lang }: Props) {
   ];
 
   return (
-    <nav className="lg:hidden shrink-0 bg-white dark:bg-gray-900
-                    border-t border-gray-200 dark:border-gray-700 flex">
+    <nav
+      className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex"
+      style={{ flexShrink: 0 }}
+    >
       {tabs.map(tab => (
         <button
           key={tab.id}

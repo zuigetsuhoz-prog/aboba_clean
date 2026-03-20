@@ -26,13 +26,13 @@ function SidebarNav({
     { id: 'settings', label: t.tabSettings, icon: '⚙️' },
   ];
   return (
-    <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
+    <nav style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '12px 8px' }}>
       {tabs.map(tab => (
         <button
           key={tab.id}
           onClick={() => onSelect(tab.id)}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
-                      transition-colors
+                      transition-colors mb-0.5
                       ${active === tab.id
                         ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
@@ -47,9 +47,9 @@ function SidebarNav({
 
 function PanelPlaceholder() {
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center px-6 select-none">
-      <p className="text-5xl mb-4 opacity-10">📋</p>
-      <p className="text-sm text-gray-300 dark:text-gray-700 leading-relaxed">
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', padding: '0 24px', userSelect: 'none' }}>
+      <p style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.1 }}>📋</p>
+      <p className="text-sm text-gray-300 dark:text-gray-700" style={{ lineHeight: 1.6 }}>
         Select a word or start a study session
       </p>
     </div>
@@ -62,73 +62,80 @@ export default function App() {
   const [panelContent, setPanelContent] = useState<ReactNode>(null);
 
   const lang = settings.language;
-
-  // Stable setter so screens can include it in useEffect deps without infinite loops
   const setPanel = useCallback((node: ReactNode) => setPanelContent(node), []);
-
   const handleOpenSettings = () => setActiveTab('settings');
 
+  const bg = settings.darkMode ? '#111827' : '#f3f4f6';
+
+  const screen = (
+    <>
+      {activeTab === 'lists' && (
+        <ListsScreen aiSettings={settings.ai} lang={lang} onOpenSettings={handleOpenSettings} />
+      )}
+      {activeTab === 'study' && (
+        <StudyScreen aiSettings={settings.ai} lang={lang} onOpenSettings={handleOpenSettings} />
+      )}
+      {activeTab === 'search' && (
+        <SearchScreen lang={lang} aiSettings={settings.ai} onOpenSettings={handleOpenSettings} />
+      )}
+      {activeTab === 'settings' && (
+        <SettingsScreen settings={settings} onUpdateSettings={updateSettings} />
+      )}
+    </>
+  );
+
   return (
-    <div className={`flex flex-col flex-1 ${settings.darkMode ? 'dark' : ''}`}>
+    <div
+      className={settings.darkMode ? 'dark' : ''}
+      style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100dvh', overflow: 'hidden', background: bg }}
+    >
+      {/* ── MOBILE layout (< 1024px) ── */}
       <div
-        className="flex h-screen overflow-hidden"
-        style={{ background: settings.darkMode ? '#111827' : '#f3f4f6' }}
+        className="lg:hidden"
+        style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}
       >
-        {/* ── Left sidebar — lg+ only ───────────────────────────────────────── */}
-        <aside className="hidden lg:flex flex-col h-full w-[280px] xl:w-[260px] shrink-0
-                          overflow-y-auto
-                          bg-white dark:bg-gray-900
-                          border-r border-gray-200 dark:border-gray-700">
-          <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-800">
+        {/* Mobile content area — the scroll container */}
+        <PanelCtx.Provider value={setPanel}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            {screen}
+          </div>
+        </PanelCtx.Provider>
+        {/* Mobile bottom tab bar */}
+        <TabBar active={activeTab} onSelect={setActiveTab} lang={lang} />
+      </div>
+
+      {/* ── DESKTOP layout (>= 1024px) ── */}
+      <div
+        className="hidden lg:flex"
+        style={{ flex: 1, minHeight: 0, overflow: 'hidden', height: '100dvh' }}
+      >
+        {/* Left sidebar */}
+        <aside
+          className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700"
+          style={{ flexShrink: 0, width: '260px', display: 'flex', flexDirection: 'column', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
+        >
+          <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-800" style={{ flexShrink: 0 }}>
             <p className="text-base font-bold text-gray-900 dark:text-white">BALBES files</p>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Offline-first</p>
           </div>
           <SidebarNav active={activeTab} onSelect={setActiveTab} lang={lang} />
         </aside>
 
-        {/* ── Main column ───────────────────────────────────────────────────── */}
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden min-w-0">
-          {/* Screen wrapper — actual scroll container */}
+        {/* Center column */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Center scroll container */}
           <PanelCtx.Provider value={setPanel}>
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              {activeTab === 'lists' && (
-                <ListsScreen
-                  aiSettings={settings.ai}
-                  lang={lang}
-                  onOpenSettings={handleOpenSettings}
-                />
-              )}
-              {activeTab === 'study' && (
-                <StudyScreen
-                  aiSettings={settings.ai}
-                  lang={lang}
-                  onOpenSettings={handleOpenSettings}
-                />
-              )}
-              {activeTab === 'search' && (
-                <SearchScreen
-                  lang={lang}
-                  aiSettings={settings.ai}
-                  onOpenSettings={handleOpenSettings}
-                />
-              )}
-              {activeTab === 'settings' && (
-                <SettingsScreen
-                  settings={settings}
-                  onUpdateSettings={updateSettings}
-                />
-              )}
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              {screen}
             </div>
           </PanelCtx.Provider>
-
-          {/* Bottom tab bar — mobile / sm only (hidden lg+) */}
-          <TabBar active={activeTab} onSelect={setActiveTab} lang={lang} />
         </div>
 
-        {/* ── Right context panel — xl+ only ───────────────────────────────── */}
-        <aside className="hidden xl:flex flex-col h-full w-[300px] shrink-0 overflow-y-auto
-                          bg-white dark:bg-gray-900
-                          border-l border-gray-200 dark:border-gray-700">
+        {/* Right panel — xl+ only */}
+        <aside
+          className="hidden xl:flex flex-col bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700"
+          style={{ flexShrink: 0, width: '300px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
+        >
           {panelContent ?? <PanelPlaceholder />}
         </aside>
       </div>
