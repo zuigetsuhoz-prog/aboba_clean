@@ -71,7 +71,7 @@ export default function App() {
   return (
     <div className={`flex flex-col flex-1 ${settings.darkMode ? 'dark' : ''}`}>
       <div
-        className="flex flex-1"
+        className="flex h-screen overflow-hidden"
         style={{ background: settings.darkMode ? '#111827' : '#f3f4f6' }}
       >
         {/* ── Left sidebar — lg+ only ───────────────────────────────────────── */}
@@ -87,17 +87,10 @@ export default function App() {
         </aside>
 
         {/* ── Main column ───────────────────────────────────────────────────── */}
-        {/*
-          CSS Grid instead of flex-col: grid-rows-[1fr_auto] gives the screen
-          wrapper a DEFINITE height (the 1fr track), which is the only reliable
-          way to make overflow-y:auto actually trigger scrolling. flex-1 alone
-          inside a flex-col gives an ambiguous height that browsers may treat as
-          "auto", preventing overflow from being detected.
-        */}
-        <div className="flex-1 grid grid-rows-[1fr_auto] h-full min-w-0">
-          {/* Screen wrapper — 1fr row, the actual scroll container */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden min-w-0">
+          {/* Screen wrapper — actual scroll container */}
           <PanelCtx.Provider value={setPanel}>
-            <div className="overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {activeTab === 'lists' && (
                 <ListsScreen
                   aiSettings={settings.ai}
