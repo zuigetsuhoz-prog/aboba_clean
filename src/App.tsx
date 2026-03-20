@@ -75,7 +75,8 @@ export default function App() {
         style={{ background: settings.darkMode ? '#111827' : '#f3f4f6' }}
       >
         {/* ── Left sidebar — lg+ only ───────────────────────────────────────── */}
-        <aside className="hidden lg:flex flex-col w-[280px] xl:w-[260px] shrink-0
+        <aside className="hidden lg:flex flex-col h-full w-[280px] xl:w-[260px] shrink-0
+                          overflow-y-auto
                           bg-white dark:bg-gray-900
                           border-r border-gray-200 dark:border-gray-700">
           <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-800">
@@ -86,10 +87,17 @@ export default function App() {
         </aside>
 
         {/* ── Main column ───────────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Screen area — the sole scroll container for the center column */}
+        {/*
+          CSS Grid instead of flex-col: grid-rows-[1fr_auto] gives the screen
+          wrapper a DEFINITE height (the 1fr track), which is the only reliable
+          way to make overflow-y:auto actually trigger scrolling. flex-1 alone
+          inside a flex-col gives an ambiguous height that browsers may treat as
+          "auto", preventing overflow from being detected.
+        */}
+        <div className="flex-1 grid grid-rows-[1fr_auto] h-full min-w-0">
+          {/* Screen wrapper — 1fr row, the actual scroll container */}
           <PanelCtx.Provider value={setPanel}>
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="overflow-y-auto">
               {activeTab === 'lists' && (
                 <ListsScreen
                   aiSettings={settings.ai}
@@ -125,7 +133,7 @@ export default function App() {
         </div>
 
         {/* ── Right context panel — xl+ only ───────────────────────────────── */}
-        <aside className="hidden xl:flex flex-col w-[300px] shrink-0 overflow-y-auto
+        <aside className="hidden xl:flex flex-col h-full w-[300px] shrink-0 overflow-y-auto
                           bg-white dark:bg-gray-900
                           border-l border-gray-200 dark:border-gray-700">
           {panelContent ?? <PanelPlaceholder />}

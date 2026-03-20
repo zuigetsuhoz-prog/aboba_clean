@@ -224,7 +224,7 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   // ── completion screen ─────────────────────────────────────────────────────
   if (!currentWord) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-full gap-4 px-6
+      <div className="flex flex-col items-center justify-center min-h-svh gap-4 px-6
                       bg-gray-100 dark:bg-gray-900">
         <p className="text-5xl">🎉</p>
         <p className="text-xl font-bold text-gray-900 dark:text-white">{t.sessionComplete}</p>
@@ -239,7 +239,7 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   const content = getContent(side, currentWord);
 
   return (
-    <div className="flex flex-col min-h-full bg-gray-100 dark:bg-gray-900">
+    <div className="flex flex-col min-h-svh bg-gray-100 dark:bg-gray-900">
       {/* Header */}
       <header className="flex items-center justify-between px-3 py-2 bg-white dark:bg-gray-800
                          border-b border-gray-200 dark:border-gray-700">
