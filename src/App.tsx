@@ -69,9 +69,9 @@ export default function App() {
   const handleOpenSettings = () => setActiveTab('settings');
 
   return (
-    <div className={settings.darkMode ? 'dark' : ''}>
+    <div className={`flex flex-col flex-1 ${settings.darkMode ? 'dark' : ''}`}>
       <div
-        className="flex h-svh overflow-hidden"
+        className="flex flex-1 overflow-hidden"
         style={{ background: settings.darkMode ? '#111827' : '#f3f4f6' }}
       >
         {/* ── Left sidebar — lg+ only ───────────────────────────────────────── */}
