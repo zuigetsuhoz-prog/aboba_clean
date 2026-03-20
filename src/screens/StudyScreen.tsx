@@ -1,14 +1,21 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { db, type Word, getWordsForList, stripTones } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { FlashcardScreen } from './FlashcardScreen';
 import { useT } from '../i18n';
 import type { AISettings, Lang } from '../types';
 
+const SUBLIST_SIZE = 25;
+
 interface Props {
   aiSettings: AISettings;
   lang: Lang;
   onOpenSettings: () => void;
+}
+
+interface SelectionState {
+  fullSelected: Set<number>;
+  subSelected: Map<number, Set<number>>;
 }
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
@@ -29,10 +36,41 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
+function TriCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+}: {
+  checked: boolean;
+  indeterminate: boolean;
+  onChange: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      className="w-4 h-4 accent-indigo-600 shrink-0"
+    />
+  );
+}
+
 export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
   const t = useT(lang);
-  const [selectedLists, setSelectedLists] = useState<Set<number>>(new Set());
-  const [limitN, setLimitN] = useState('');
+
+  const [selection, setSelection] = useState<SelectionState>({
+    fullSelected: new Set(),
+    subSelected: new Map(),
+  });
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  const [startFrom, setStartFrom] = useState('1');
+  const [limitCount, setLimitCount] = useState('100');
   const [pinyinFilter, setPinyinFilter] = useState('');
   const [maxConfidence, setMaxConfidence] = useState('');
   const [shuffle, setShuffle] = useState(false);
@@ -40,36 +78,109 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
 
   const lists = useLiveQuery(() => db.wordLists.orderBy('name').toArray(), []);
 
-  // Fetch all words from selected lists via junction table
+  // Word count per list — used to compute number of sublists
+  const wordCounts = useLiveQuery<Record<number, number>>(async () => {
+    if (!lists) return {};
+    const counts: Record<number, number> = {};
+    for (const l of lists) {
+      counts[l.id!] = await db.wordRefs.where('listId').equals(l.id!).count();
+    }
+    return counts;
+  }, [lists]);
+
+  // Fetch and merge words for the current selection
   const allWords = useLiveQuery<Word[]>(async () => {
-    if (selectedLists.size === 0) return [];
-    const words = await Promise.all(
-      [...selectedLists].map(id => getWordsForList(id)),
-    );
-    // Deduplicate by word id (a word might be in multiple selected lists)
+    const { fullSelected, subSelected } = selection;
+    const hasSubSel = [...subSelected.values()].some(s => s.size > 0);
+    if (fullSelected.size === 0 && !hasSubSel) return [];
+
     const seen = new Set<number>();
     const flat: Word[] = [];
-    for (const arr of words) {
-      for (const w of arr) {
+
+    for (const listId of fullSelected) {
+      const words = await getWordsForList(listId);
+      for (const w of words) {
         if (!seen.has(w.id!)) { seen.add(w.id!); flat.push(w); }
       }
     }
-    // Sort by confidence ascending (weakest first) as default
+
+    for (const [listId, subIndices] of subSelected) {
+      if (subIndices.size === 0 || fullSelected.has(listId)) continue;
+      const words = await getWordsForList(listId);
+      for (const idx of [...subIndices].sort((a, b) => a - b)) {
+        const start = idx * SUBLIST_SIZE;
+        const end = start + SUBLIST_SIZE;
+        for (const w of words.slice(start, end)) {
+          if (!seen.has(w.id!)) { seen.add(w.id!); flat.push(w); }
+        }
+      }
+    }
+
     flat.sort((a, b) => a.confidence - b.confidence);
     return flat;
-  }, [selectedLists]);
+  }, [selection]);
 
-  const toggleList = (id: number) => {
-    setSelectedLists(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  const toggleParent = (listId: number, numSublists: number) => {
+    setSelection(prev => {
+      const isFull = prev.fullSelected.has(listId);
+      const listSubSel = prev.subSelected.get(listId) ?? new Set<number>();
+      const allSubsSelected = numSublists > 0 && listSubSel.size === numSublists;
+
+      const newFull = new Set(prev.fullSelected);
+      const newSub = new Map(prev.subSelected);
+
+      if (isFull || allSubsSelected) {
+        newFull.delete(listId);
+        newSub.delete(listId);
+      } else {
+        // Indeterminate or unchecked → select full list
+        newFull.add(listId);
+        newSub.delete(listId);
+      }
+      return { fullSelected: newFull, subSelected: newSub };
     });
   };
 
-  // Use useMemo for filtered preview so shuffle is stable on each render
-  // (regenerated only when dependencies change, not on every re-render)
+  const toggleSublist = (listId: number, subIdx: number, numSublists: number) => {
+    setSelection(prev => {
+      const newFull = new Set(prev.fullSelected);
+      const newSub = new Map(prev.subSelected);
+
+      if (prev.fullSelected.has(listId)) {
+        // Was fully selected → switch to partial (all except clicked)
+        newFull.delete(listId);
+        const allExceptThis = new Set(
+          Array.from({ length: numSublists }, (_, i) => i).filter(i => i !== subIdx),
+        );
+        if (allExceptThis.size > 0) newSub.set(listId, allExceptThis);
+      } else {
+        const existing = new Set(prev.subSelected.get(listId) ?? new Set<number>());
+        if (existing.has(subIdx)) existing.delete(subIdx);
+        else existing.add(subIdx);
+
+        if (existing.size === 0) {
+          newSub.delete(listId);
+        } else if (existing.size === numSublists) {
+          // All sublists checked → promote to full
+          newSub.delete(listId);
+          newFull.add(listId);
+        } else {
+          newSub.set(listId, existing);
+        }
+      }
+      return { fullSelected: newFull, subSelected: newSub };
+    });
+  };
+
+  const toggleExpand = (listId: number) => {
+    setExpanded(prev => {
+      const n = new Set(prev);
+      if (n.has(listId)) n.delete(listId);
+      else n.add(listId);
+      return n;
+    });
+  };
+
   const filteredPreview = useMemo(() => {
     if (!allWords) return [];
     let words = [...allWords];
@@ -84,9 +195,10 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
       if (!isNaN(max)) words = words.filter(w => w.confidence <= max);
     }
 
-    if (limitN.trim()) {
-      const n = parseInt(limitN, 10);
-      if (!isNaN(n) && n > 0) words = words.slice(0, n);
+    const start = parseInt(startFrom, 10);
+    const count = parseInt(limitCount, 10);
+    if (!isNaN(start) && !isNaN(count) && start >= 1 && count >= 1) {
+      words = words.slice(start - 1, start - 1 + count);
     }
 
     if (shuffle) {
@@ -94,9 +206,8 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
     }
 
     return words;
-  // Intentionally include shuffle in deps so toggling regenerates the order
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allWords, pinyinFilter, maxConfidence, limitN, shuffle]);
+  }, [allWords, pinyinFilter, maxConfidence, startFrom, limitCount, shuffle]);
 
   const startSession = () => {
     if (filteredPreview.length === 0) return;
@@ -115,6 +226,10 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
     );
   }
 
+  const hasAnySelection =
+    selection.fullSelected.size > 0 ||
+    [...selection.subSelected.values()].some(s => s.size > 0);
+
   return (
     <div className="flex flex-col h-full">
       <header className="px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700
@@ -132,21 +247,70 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
             <p className="text-sm text-gray-400 dark:text-gray-500 italic">{t.noListsForStudy}</p>
           ) : (
             <div className="space-y-1">
-              {lists.map(l => (
-                <label
-                  key={l.id}
-                  className="flex items-center gap-3 px-3 py-2.5 bg-white dark:bg-gray-800
-                             rounded-xl cursor-pointer active:bg-gray-50 dark:active:bg-gray-700"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedLists.has(l.id!)}
-                    onChange={() => toggleList(l.id!)}
-                    className="w-4 h-4 accent-indigo-600"
-                  />
-                  <span className="text-gray-900 dark:text-white font-medium">{l.name}</span>
-                </label>
-              ))}
+              {lists.map(l => {
+                const wordCount = wordCounts?.[l.id!] ?? 0;
+                const numSublists = Math.ceil(wordCount / SUBLIST_SIZE);
+                const isExpanded = expanded.has(l.id!);
+                const isFull = selection.fullSelected.has(l.id!);
+                const listSubSel = selection.subSelected.get(l.id!) ?? new Set<number>();
+                const allSubsSelected = numSublists > 0 && listSubSel.size === numSublists;
+                const parentChecked = isFull || allSubsSelected;
+                const parentIndeterminate = !parentChecked && listSubSel.size > 0;
+
+                return (
+                  <div key={l.id} className="space-y-0.5">
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-white dark:bg-gray-800
+                                    rounded-xl">
+                      <TriCheckbox
+                        checked={parentChecked}
+                        indeterminate={parentIndeterminate}
+                        onChange={() => toggleParent(l.id!, numSublists)}
+                      />
+                      <span className="flex-1 text-gray-900 dark:text-white font-medium">{l.name}</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">{wordCount}</span>
+                      {numSublists > 1 && (
+                        <button
+                          onClick={() => toggleExpand(l.id!)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-xs
+                                     text-gray-400 dark:text-gray-500
+                                     hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          aria-label={isExpanded ? 'Collapse sublists' : 'Expand sublists'}
+                        >
+                          {isExpanded ? '▼' : '▶'}
+                        </button>
+                      )}
+                    </div>
+
+                    {isExpanded && numSublists > 0 && (
+                      <div className="ml-6 space-y-0.5">
+                        {Array.from({ length: numSublists }, (_, idx) => {
+                          const rangeStart = idx * SUBLIST_SIZE + 1;
+                          const rangeEnd = Math.min((idx + 1) * SUBLIST_SIZE, wordCount);
+                          const isSubChecked = isFull || listSubSel.has(idx);
+                          return (
+                            <label
+                              key={idx}
+                              className="flex items-center gap-3 px-3 py-2
+                                         bg-gray-50 dark:bg-gray-700/50 rounded-lg cursor-pointer
+                                         active:bg-gray-100 dark:active:bg-gray-700"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSubChecked}
+                                onChange={() => toggleSublist(l.id!, idx, numSublists)}
+                                className="w-4 h-4 accent-indigo-600 shrink-0"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">
+                                {l.name} ({rangeStart}–{rangeEnd})
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
@@ -159,10 +323,22 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
           <div className="bg-white dark:bg-gray-800 rounded-xl p-3 space-y-3">
             <div className="flex items-center gap-3">
               <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
-                {t.firstNWords}
+                {t.startFromWord}
               </label>
-              <input type="number" min="1" value={limitN} onChange={e => setLimitN(e.target.value)}
-                placeholder={t.firstNPh}
+              <input type="number" min="1" value={startFrom}
+                onChange={e => setStartFrom(e.target.value)}
+                placeholder="1"
+                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
+                           bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
+                           focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+                {t.numWords}
+              </label>
+              <input type="number" min="1" value={limitCount}
+                onChange={e => setLimitCount(e.target.value)}
+                placeholder="100"
                 className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
                            focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -171,7 +347,8 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
               <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
                 {t.pinyinStarts}
               </label>
-              <input type="text" value={pinyinFilter} onChange={e => setPinyinFilter(e.target.value)}
+              <input type="text" value={pinyinFilter}
+                onChange={e => setPinyinFilter(e.target.value)}
                 placeholder={t.pinyinPh}
                 className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
@@ -182,7 +359,8 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
                 {t.maxConfidence}
               </label>
               <input type="number" min="0" max="100" value={maxConfidence}
-                onChange={e => setMaxConfidence(e.target.value)} placeholder="100"
+                onChange={e => setMaxConfidence(e.target.value)}
+                placeholder="100"
                 className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
                            focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -197,7 +375,7 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
         </section>
 
         {/* Preview count */}
-        {selectedLists.size > 0 && (
+        {hasAnySelection && (
           <div className="mt-4 px-4">
             <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200
                             dark:border-indigo-800 rounded-xl p-3 text-center">
