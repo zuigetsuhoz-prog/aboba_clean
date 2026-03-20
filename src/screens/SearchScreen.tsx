@@ -129,13 +129,15 @@ export function SearchScreen({ lang, aiSettings, onOpenSettings }: Props) {
                         🔊
                       </button>
                     )}
-                    <button
-                      onClick={() => setAiWord(word)}
-                      className="w-8 h-8 flex items-center justify-center rounded-full
-                                 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-                    >
-                      ✨
-                    </button>
+                    {aiSettings.enabled && (
+                      <button
+                        onClick={() => setAiWord(word)}
+                        className="w-8 h-8 flex items-center justify-center rounded-full
+                                   text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      >
+                        ✨
+                      </button>
+                    )}
                   </div>
                 </div>
               </li>

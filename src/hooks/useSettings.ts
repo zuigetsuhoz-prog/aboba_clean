@@ -7,6 +7,7 @@ const defaultSettings: AppSettings = {
   darkMode: false,
   language: 'en',
   ai: {
+    enabled: false,
     provider: 'openai',
     apiKey: '',
     model: 'gpt-4o-mini',

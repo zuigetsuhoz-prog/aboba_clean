@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { db, type Word } from '../db';
+import { db, type Word, calcConfidence, type RatingKey } from '../db';
 import { AIModal } from '../components/AIModal';
 import { Modal } from '../components/Modal';
 import { useTTS } from '../hooks/useTTS';
@@ -25,6 +25,13 @@ interface CardHistoryEntry {
 
 const SIDE_LABELS: Record<CardSide, string> = { 0: '汉字', 1: 'Pīnyīn', 2: 'Translation' };
 
+const RATINGS: { key: RatingKey; labelKey: 'ratePerfect' | 'rateTone' | 'rateVague' | 'rateNoIdea'; color: string }[] = [
+  { key: 'perfect', labelKey: 'ratePerfect', color: 'bg-green-500' },
+  { key: 'tone',    labelKey: 'rateTone',    color: 'bg-yellow-500' },
+  { key: 'vague',   labelKey: 'rateVague',   color: 'bg-orange-500' },
+  { key: 'noidea',  labelKey: 'rateNoIdea',  color: 'bg-red-500' },
+];
+
 export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings, onOpenSettings }: Props) {
   const t = useT(lang);
 
@@ -44,15 +51,12 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   const [showNote, setShowNote] = useState(false);
   const [noteText, setNoteText] = useState('');
 
-  // ── rating ────────────────────────────────────────────────────────────────
+  // ── rating feedback ───────────────────────────────────────────────────────
   const [ratingFeedback, setRatingFeedback] = useState('');
-  const [showRateNow, setShowRateNow] = useState(false); // user tapped "rate now"
 
   const { speak, supported: ttsSupported } = useTTS();
 
   const currentWord = words[currentIndex];
-  const allSidesVisited = visitedSides.size === 3;
-  const canRate = allSidesVisited || showRateNow;
 
   const getContent = useCallback((s: CardSide, word: Word): string =>
     s === 0 ? word.hanzi : s === 1 ? word.pinyin : word.translation, []);
@@ -90,15 +94,15 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   };
   const saveNote = async () => {
     if (!currentWord) return;
-    await db.words.update(currentWord.id!, { notes: noteText.trim() || undefined });
-    setWords(prev => prev.map((w, i) =>
-      i === currentIndex ? { ...w, notes: noteText.trim() || undefined } : w));
+    const trimmed = noteText.trim() || undefined;
+    await db.words.update(currentWord.id!, { notes: trimmed });
+    setWords(prev => prev.map((w, i) => i === currentIndex ? { ...w, notes: trimmed } : w));
     setShowNote(false);
   };
 
   // ── advance to next card ──────────────────────────────────────────────────
-  const goNext = useCallback((histEntry: CardHistoryEntry | null) => {
-    if (histEntry) setHistory(prev => [...prev, histEntry]);
+  const goNext = useCallback((histEntry: CardHistoryEntry) => {
+    setHistory(prev => [...prev, histEntry]);
     if (currentIndex + 1 >= words.length) { onExit(); return; }
     setAnimClass('slide-out-left');
     clearTimeout(animTimeout.current);
@@ -106,7 +110,6 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
       setCurrentIndex(i => i + 1);
       setSide(0);
       setVisitedSides(new Set([0]));
-      setShowRateNow(false);
       setAnimClass('slide-in-right');
       window.setTimeout(() => setAnimClass(''), 250);
     }, 200);
@@ -119,7 +122,6 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
     setHistory(prev => prev.slice(0, -1));
 
     if (entry.wasRated) {
-      // Undo the confidence change
       await db.words.update(words[entry.wordIndex].id!, {
         confidence: entry.prevConfidence,
         reviewCount: entry.prevReviewCount,
@@ -137,7 +139,6 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
       setCurrentIndex(entry.wordIndex);
       setSide(entry.side);
       setVisitedSides(new Set(entry.visitedSides));
-      setShowRateNow(false);
       setRatingFeedback('');
       setAnimClass('slide-in-left');
       window.setTimeout(() => setAnimClass(''), 250);
@@ -145,11 +146,11 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   };
 
   // ── rating ────────────────────────────────────────────────────────────────
-  const applyRating = async (delta: number, label: string) => {
+  const applyRating = async (ratingKey: RatingKey, label: string) => {
     if (!currentWord) return;
     const prevConfidence = currentWord.confidence;
     const prevReviewCount = currentWord.reviewCount;
-    const newConfidence = Math.max(0, Math.min(100, prevConfidence + delta));
+    const newConfidence = calcConfidence(prevConfidence, ratingKey);
 
     await db.words.update(currentWord.id!, {
       confidence: newConfidence,
@@ -209,7 +210,7 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
           <button
             onClick={goBack}
             disabled={history.length === 0}
-            className="px-2 py-1.5 text-sm font-medium rounded-lg transition-opacity
+            className="px-2 py-1.5 text-sm font-medium rounded-lg
                        text-indigo-600 dark:text-indigo-400
                        disabled:opacity-30 active:bg-indigo-50 dark:active:bg-indigo-900/20"
           >
@@ -222,10 +223,8 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
         <div className="flex gap-0.5">
           <button
             onClick={openNote}
-            className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors
-                        ${currentWord.notes
-                          ? 'text-amber-400'
-                          : 'text-gray-400 dark:text-gray-600'}`}
+            className={`w-8 h-8 flex items-center justify-center rounded-full
+                        ${currentWord.notes ? 'text-amber-400' : 'text-gray-400 dark:text-gray-600'}`}
           >
             📝
           </button>
@@ -236,11 +235,13 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
               🔊
             </button>
           )}
-          <button onClick={() => setShowAI(true)}
-            className="w-8 h-8 flex items-center justify-center rounded-full
-                       text-gray-500 active:bg-gray-100 dark:active:bg-gray-700">
-            ✨
-          </button>
+          {aiSettings.enabled && (
+            <button onClick={() => setShowAI(true)}
+              className="w-8 h-8 flex items-center justify-center rounded-full
+                         text-gray-500 active:bg-gray-100 dark:active:bg-gray-700">
+              ✨
+            </button>
+          )}
         </div>
       </header>
 
@@ -250,7 +251,7 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
           style={{ width: `${((currentIndex + 1) / words.length) * 100}%` }} />
       </div>
 
-      {/* Card area */}
+      {/* Card tap area */}
       <div
         className="flex-1 flex flex-col items-center justify-center px-4 select-none
                    cursor-pointer relative overflow-hidden"
@@ -289,11 +290,9 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
         <div className="flex gap-2 mt-4">
           {([0, 1, 2] as CardSide[]).map(s => (
             <div key={s} className={`w-2 h-2 rounded-full transition-colors ${
-              s === side
-                ? 'bg-indigo-600'
-                : visitedSides.has(s)
-                ? 'bg-indigo-300 dark:bg-indigo-700'
-                : 'bg-gray-300 dark:bg-gray-700'}`} />
+              s === side ? 'bg-indigo-600'
+              : visitedSides.has(s) ? 'bg-indigo-300 dark:bg-indigo-700'
+              : 'bg-gray-300 dark:bg-gray-700'}`} />
           ))}
         </div>
         <p className="mt-2 text-xs text-gray-400 dark:text-gray-600 pointer-events-none">
@@ -301,45 +300,28 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
         </p>
       </div>
 
-      {/* Rating / bottom area */}
+      {/* Rating buttons — always visible */}
       <div className="px-4 pb-20 bg-white dark:bg-gray-800
                       border-t border-gray-200 dark:border-gray-700">
         {ratingFeedback ? (
           <div className="py-4 text-center text-lg font-semibold text-gray-700 dark:text-gray-300 fade-in">
             {ratingFeedback}
           </div>
-        ) : canRate ? (
+        ) : (
           <div className="py-3">
             <p className="text-xs text-center text-gray-400 dark:text-gray-500 mb-2">{t.howWell}</p>
             <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: t.ratePerfect,  delta: 20,  color: 'bg-green-500' },
-                { label: t.rateTone,     delta: -5,  color: 'bg-yellow-500' },
-                { label: t.rateVague,    delta: -15, color: 'bg-orange-500' },
-                { label: t.rateNoIdea,   delta: -30, color: 'bg-red-500' },
-              ].map(r => (
+              {RATINGS.map(r => (
                 <button
-                  key={r.label}
-                  onClick={() => applyRating(r.delta, r.label)}
+                  key={r.key}
+                  onClick={() => applyRating(r.key, t[r.labelKey])}
                   className={`${r.color} text-white py-2.5 rounded-xl text-sm font-medium
                                active:scale-95 transition-transform`}
                 >
-                  {r.label}
+                  {t[r.labelKey]}
                 </button>
               ))}
             </div>
-          </div>
-        ) : (
-          <div className="py-3 flex items-center justify-between gap-3">
-            <p className="text-xs text-gray-400 dark:text-gray-500">{t.seeAllSides}</p>
-            <button
-              onClick={() => setShowRateNow(true)}
-              className="shrink-0 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg
-                         text-sm font-medium text-gray-700 dark:text-gray-300
-                         active:scale-95 transition-transform"
-            >
-              {t.rateNow}
-            </button>
           </div>
         )}
       </div>
@@ -367,13 +349,13 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
               className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-medium
                          active:scale-95 transition-transform"
             >
-              {lang === 'ru' ? 'Сохранить' : 'Save'}
+              {t.noteSave}
             </button>
           </div>
         </Modal>
       )}
 
-      {showAI && (
+      {aiSettings.enabled && showAI && (
         <AIModal
           hanzi={currentWord.hanzi}
           settings={aiSettings}

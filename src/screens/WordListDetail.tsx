@@ -12,14 +12,10 @@ import { useT } from '../i18n';
 import type { AISettings, Lang, SortOption } from '../types';
 
 const SORT_KEY = (listId: number) => `sort_${listId}`;
-
-function loadSort(listId: number): SortOption {
-  return (localStorage.getItem(SORT_KEY(listId)) as SortOption | null) ?? 'default';
-}
-
-function saveSort(listId: number, s: SortOption) {
+const loadSort = (listId: number): SortOption =>
+  (localStorage.getItem(SORT_KEY(listId)) as SortOption | null) ?? 'default';
+const saveSort = (listId: number, s: SortOption) =>
   localStorage.setItem(SORT_KEY(listId), s);
-}
 
 interface Props {
   list: WordList;
@@ -46,19 +42,17 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
   // ── modals ────────────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<Word | null>(null);
   const [aiWord, setAiWord] = useState<Word | null>(null);
-  const [expandedNote, setExpandedNote] = useState<number | null>(null); // word.id
+  const [expandedNote, setExpandedNote] = useState<number | null>(null);
 
   // ── multi-select ──────────────────────────────────────────────────────────
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [showCopyModal, setShowCopyModal] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const { speak, supported: ttsSupported } = useTTS();
 
-  const rawWords = useLiveQuery(
-    () => getWordsForList(list.id!),
-    [list.id],
-  );
+  const rawWords = useLiveQuery(() => getWordsForList(list.id!), [list.id]);
 
   const words = useMemo(() => {
     if (!rawWords) return [];
@@ -73,11 +67,8 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
   const addWord = async () => {
     if (!hanzi.trim() || !pinyin.trim() || !translation.trim()) return;
     await addWordToList(list.id!, {
-      hanzi: hanzi.trim(),
-      pinyin: pinyin.trim(),
-      translation: translation.trim(),
-      confidence: 50,
-      reviewCount: 0,
+      hanzi: hanzi.trim(), pinyin: pinyin.trim(), translation: translation.trim(),
+      confidence: 50, reviewCount: 0,
       notes: noteInput.trim() || undefined,
     });
     setHanzi(''); setPinyin(''); setTranslation(''); setNoteInput('');
@@ -96,13 +87,20 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
   const toggleSelect = (id: number) => {
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   };
 
   const exitSelectMode = () => { setSelectMode(false); setSelected(new Set()); };
+
+  const doResetConfidence = async () => {
+    for (const wid of selected) {
+      await db.words.update(wid, { confidence: 0 });
+    }
+    setShowResetConfirm(false);
+    exitSelectMode();
+  };
 
   const confidenceColor = (v: number) =>
     v <= 30 ? 'text-red-500' : v <= 60 ? 'text-orange-500' : 'text-green-600';
@@ -131,14 +129,14 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
         <div className="flex-1 min-w-0">
           <h1 className="text-base font-bold text-gray-900 dark:text-white truncate">{list.name}</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {words?.length ?? 0} {t.words}
-            {selectMode && selected.size > 0 && ` · ${selected.size} ${lang === 'ru' ? 'выбрано' : 'selected'}`}
+            {words.length} {t.words}
+            {selectMode && selected.size > 0 && ` · ${selected.size} selected`}
           </p>
         </div>
         {selectMode ? (
           <div className="flex gap-1">
             <button
-              onClick={() => setSelected(new Set(words?.map(w => w.id!) ?? []))}
+              onClick={() => setSelected(new Set(words.map(w => w.id!)))}
               className="px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400
                          active:bg-indigo-50 dark:active:bg-indigo-900/20 rounded-lg"
             >
@@ -173,7 +171,7 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
       </header>
 
       {/* Sort bar */}
-      {(words?.length ?? 0) > 1 && (
+      {words.length > 1 && (
         <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-900
                         border-b border-gray-100 dark:border-gray-800 overflow-x-auto">
           <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{t.sortBy}</span>
@@ -194,7 +192,7 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
 
       {/* Word list */}
       <div className="flex-1 overflow-y-auto pb-20">
-        {!words || words.length === 0 ? (
+        {words.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center px-8">
             <p className="text-5xl mb-3">🈳</p>
             <p className="text-gray-500 dark:text-gray-400 font-medium">{t.noWordsTitle}</p>
@@ -205,7 +203,7 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
             {words.map(word => (
               <li key={word.id} className="bg-white dark:bg-gray-900">
                 <div className="flex items-start gap-2 px-4 py-3">
-                  {/* Checkbox in select mode */}
+                  {/* Checkbox */}
                   {selectMode && (
                     <button
                       onClick={() => toggleSelect(word.id!)}
@@ -236,12 +234,12 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{word.translation}</p>
 
-                    {/* Note inline */}
+                    {/* Inline note */}
                     {word.notes && expandedNote !== word.id && (
                       <button
                         onClick={() => setExpandedNote(word.id!)}
-                        className="flex items-center gap-1 mt-1 text-xs text-gray-400
-                                   dark:text-gray-500 italic active:opacity-70"
+                        className="flex items-center gap-1 mt-1 text-xs text-gray-400 dark:text-gray-500
+                                   italic active:opacity-70"
                       >
                         <span>📝</span>
                         <span className="truncate max-w-[200px]">{word.notes}</span>
@@ -251,10 +249,7 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
                       <textarea
                         autoFocus
                         defaultValue={word.notes ?? ''}
-                        onBlur={e => {
-                          saveNote(word.id!, e.target.value);
-                          setExpandedNote(null);
-                        }}
+                        onBlur={e => { saveNote(word.id!, e.target.value); setExpandedNote(null); }}
                         placeholder={t.notesPlaceholder}
                         rows={2}
                         className="w-full mt-1.5 px-2 py-1.5 text-xs border border-gray-200
@@ -264,11 +259,16 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
                       />
                     )}
 
-                    <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <ConfidenceBar value={word.confidence} className="max-w-[80px]" />
                       <span className={`text-xs font-medium ${confidenceColor(word.confidence)}`}>
                         {word.confidence}%
                       </span>
+                      {word.reviewCount > 0 && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          {t.reviewedTimes(word.reviewCount)}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -277,8 +277,7 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => setExpandedNote(expandedNote === word.id ? null : word.id!)}
-                        className={`w-8 h-8 flex items-center justify-center rounded-full
-                                    transition-colors
+                        className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors
                                     ${word.notes
                                       ? 'text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
                                       : 'text-gray-300 dark:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
@@ -294,13 +293,15 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
                           🔊
                         </button>
                       )}
-                      <button
-                        onClick={() => setAiWord(word)}
-                        className="w-8 h-8 flex items-center justify-center rounded-full
-                                   text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-                      >
-                        ✨
-                      </button>
+                      {aiSettings.enabled && (
+                        <button
+                          onClick={() => setAiWord(word)}
+                          className="w-8 h-8 flex items-center justify-center rounded-full
+                                     text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        >
+                          ✨
+                        </button>
+                      )}
                       <button
                         onClick={() => setDeleteTarget(word)}
                         className="w-8 h-8 flex items-center justify-center rounded-full
@@ -317,17 +318,26 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
         )}
       </div>
 
-      {/* Copy-to-list bar (select mode) */}
+      {/* Multi-select action bar */}
       {selectMode && selected.size > 0 && (
         <div className="fixed bottom-16 left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 py-3
                         bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 z-20">
-          <button
-            onClick={() => setShowCopyModal(true)}
-            className="w-full py-3 bg-indigo-600 text-white rounded-2xl font-semibold
-                       active:scale-95 transition-transform"
-          >
-            {t.addToList} ({selected.size})
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="flex-1 py-3 bg-orange-500 text-white rounded-2xl font-semibold
+                         active:scale-95 transition-transform text-sm"
+            >
+              {t.resetConfidence}
+            </button>
+            <button
+              onClick={() => setShowCopyModal(true)}
+              className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-semibold
+                         active:scale-95 transition-transform text-sm"
+            >
+              {t.addToList} ({selected.size})
+            </button>
+          </div>
         </div>
       )}
 
@@ -337,44 +347,34 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
         <Modal title={t.addWord} onClose={() => setShowAdd(false)}>
           <div className="space-y-3">
             {[
-              { label: t.hanziLabel, value: hanzi, set: setHanzi, ph: '你好' },
-              { label: t.pinyinLabel, value: pinyin, set: setPinyin, ph: 'nǐ hǎo' },
+              { label: t.hanziLabel,       value: hanzi,       set: setHanzi,       ph: '你好' },
+              { label: t.pinyinLabel,      value: pinyin,      set: setPinyin,      ph: 'nǐ hǎo' },
               { label: t.translationLabel, value: translation, set: setTranslation, ph: 'hello' },
             ].map(f => (
               <div key={f.label}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {f.label}
                 </label>
-                <input
-                  value={f.value}
-                  onChange={e => f.set(e.target.value)}
-                  placeholder={f.ph}
+                <input value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.ph}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-                             focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                             focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
             ))}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t.notesLabel}
               </label>
-              <textarea
-                value={noteInput}
-                onChange={e => setNoteInput(e.target.value)}
-                placeholder={t.notesPlaceholder}
-                rows={2}
+              <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)}
+                placeholder={t.notesPlaceholder} rows={2}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-              />
+                           focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
             </div>
-            <button
-              onClick={addWord}
+            <button onClick={addWord}
               disabled={!hanzi.trim() || !pinyin.trim() || !translation.trim()}
               className="w-full py-3 bg-indigo-600 disabled:opacity-50 text-white rounded-xl
-                         font-semibold active:scale-95 transition-transform"
-            >
+                         font-semibold active:scale-95 transition-transform">
               {t.addWord}
             </button>
           </div>
@@ -388,18 +388,35 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
               {t.deleteWordMsg(deleteTarget.hanzi, deleteTarget.translation)}
             </p>
             <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteTarget(null)}
+              <button onClick={() => setDeleteTarget(null)}
                 className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl
-                           font-medium text-gray-700 dark:text-gray-300"
-              >
+                           font-medium text-gray-700 dark:text-gray-300">
                 {t.cancel}
               </button>
-              <button
-                onClick={() => doDelete(deleteTarget)}
-                className="flex-1 py-2.5 bg-red-500 text-white rounded-xl font-medium"
-              >
+              <button onClick={() => doDelete(deleteTarget)}
+                className="flex-1 py-2.5 bg-red-500 text-white rounded-xl font-medium">
                 {t.delete}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showResetConfirm && (
+        <Modal title={t.resetConfidence} onClose={() => setShowResetConfirm(false)}>
+          <div className="space-y-4">
+            <p className="text-gray-600 dark:text-gray-400">
+              {t.resetConfirmMsg(selected.size)}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowResetConfirm(false)}
+                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl
+                           font-medium text-gray-700 dark:text-gray-300">
+                {t.cancel}
+              </button>
+              <button onClick={doResetConfidence}
+                className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-medium">
+                {t.confirm}
               </button>
             </div>
           </div>
@@ -416,7 +433,7 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
         />
       )}
 
-      {aiWord && (
+      {aiSettings.enabled && aiWord && (
         <AIModal
           hanzi={aiWord.hanzi}
           settings={aiSettings}
@@ -444,38 +461,28 @@ function CopyToListModal({ lang, wordIds, currentListId, onClose, onDone }: Copy
   const [newListName, setNewListName] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const lists = useLiveQuery(
-    () => db.wordLists.orderBy('name').toArray(),
-    [],
-  );
-
+  const lists = useLiveQuery(() => db.wordLists.orderBy('name').toArray(), []);
   const otherLists = lists?.filter(l => l.id !== currentListId) ?? [];
 
   const handleCopy = async () => {
     setLoading(true);
     try {
       let destId: number;
-
       if (newListName.trim()) {
         destId = (await db.wordLists.add({ name: newListName.trim(), createdAt: Date.now() })) as number;
       } else if (targetListId) {
         destId = targetListId as number;
-      } else {
-        return;
-      }
+      } else return;
 
       let copied = 0;
       for (const wid of wordIds) {
-        const added = await copyWordToList(wid, destId);
-        if (added) copied++;
+        if (await copyWordToList(wid, destId)) copied++;
       }
       onDone(t.wordsCopied(copied));
     } finally {
       setLoading(false);
     }
   };
-
-  const canCopy = (!!targetListId || !!newListName.trim()) && !loading;
 
   return (
     <Modal title={t.copyToList} onClose={onClose}>
@@ -484,17 +491,13 @@ function CopyToListModal({ lang, wordIds, currentListId, onClose, onDone }: Copy
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             {t.selectTarget}
           </label>
-          <select
-            value={targetListId}
+          <select value={targetListId}
             onChange={e => { setTargetListId(e.target.value ? Number(e.target.value) : ''); setNewListName(''); }}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
                        bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
+                       focus:outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="">{t.selectTarget}</option>
-            {otherLists.map(l => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
+            {otherLists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
 
@@ -504,28 +507,22 @@ function CopyToListModal({ lang, wordIds, currentListId, onClose, onDone }: Copy
           <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
         </div>
 
-        <input
-          value={newListName}
+        <input value={newListName}
           onChange={e => { setNewListName(e.target.value); if (e.target.value) setTargetListId(''); }}
           placeholder={t.newListNamePh}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
                      bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                     focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500" />
 
         <div className="flex gap-3">
-          <button
-            onClick={onClose}
+          <button onClick={onClose}
             className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl
-                       font-medium text-gray-700 dark:text-gray-300"
-          >
+                       font-medium text-gray-700 dark:text-gray-300">
             {t.cancel}
           </button>
-          <button
-            onClick={handleCopy}
-            disabled={!canCopy}
-            className="flex-1 py-2.5 bg-indigo-600 disabled:opacity-40 text-white rounded-xl font-medium"
-          >
+          <button onClick={handleCopy}
+            disabled={(!targetListId && !newListName.trim()) || loading}
+            className="flex-1 py-2.5 bg-indigo-600 disabled:opacity-40 text-white rounded-xl font-medium">
             {t.copy}
           </button>
         </div>

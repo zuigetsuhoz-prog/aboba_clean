@@ -13,7 +13,7 @@ interface Props {
 interface SingleListJSON {
   listName: string;
   words: Array<{
-    hanzi: string; pinyin: string; translation: string; confidence?: number; notes?: string;
+    hanzi: string; pinyin: string; translation: string; confidence?: number; reviewCount?: number; notes?: string;
   }>;
 }
 
@@ -81,7 +81,7 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
             pinyin: w.pinyin,
             translation: w.translation,
             confidence: typeof w.confidence === 'number' ? w.confidence : 50,
-            reviewCount: 0,
+            reviewCount: typeof w.reviewCount === 'number' ? w.reviewCount : 0,
             notes: w.notes || undefined,
           })) as number;
           await db.wordRefs.add({ listId, wordId });
@@ -107,7 +107,7 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
       listName: list.name,
       words: words.map(w => ({
         hanzi: w.hanzi, pinyin: w.pinyin, translation: w.translation,
-        confidence: w.confidence, notes: w.notes,
+        confidence: w.confidence, reviewCount: w.reviewCount, notes: w.notes,
       })),
     };
     downloadJSON(data, `${list.name.replace(/\s+/g, '_')}.json`);
@@ -123,7 +123,7 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
         listName: list.name,
         words: words.map(w => ({
           hanzi: w.hanzi, pinyin: w.pinyin, translation: w.translation,
-          confidence: w.confidence, notes: w.notes,
+          confidence: w.confidence, reviewCount: w.reviewCount, notes: w.notes,
         })),
       });
     }
@@ -208,6 +208,10 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
             {t.aiIntegration}
           </h2>
           <div className="bg-white dark:bg-gray-800 rounded-xl divide-y divide-gray-100 dark:divide-gray-700">
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-gray-900 dark:text-white font-medium">{t.enableAI}</span>
+              <Toggle on={settings.ai.enabled} onToggle={() => updateAI({ enabled: !settings.ai.enabled })} />
+            </div>
             <div className="px-4 py-3">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 {t.provider}
@@ -324,7 +328,7 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
         {/* About */}
         <section className="px-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl px-4 py-3 text-center">
-            <p className="text-2xl mb-1">汉字学习</p>
+            <p className="text-xl font-semibold text-gray-900 dark:text-white mb-1">BALBES files</p>
             <p className="text-xs text-gray-400 dark:text-gray-500">{t.about}</p>
           </div>
         </section>

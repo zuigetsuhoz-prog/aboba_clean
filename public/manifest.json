@@ -1,6 +1,6 @@
 {
-  "name": "汉字学习",
-  "short_name": "漢字",
+  "name": "BALBES files",
+  "short_name": "BALBES",
   "description": "Offline Chinese language learning with flashcards",
   "start_url": "/",
   "display": "standalone",

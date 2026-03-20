@@ -117,3 +117,17 @@ export function stripTones(s: string): string {
     .replace(/[\u0300-\u036f]/g, '') // remove combining diacritical marks
     .toLowerCase();
 }
+
+export type RatingKey = 'perfect' | 'tone' | 'vague' | 'noidea';
+
+/** Confidence scoring formulas */
+export function calcConfidence(current: number, rating: RatingKey): number {
+  let next: number;
+  switch (rating) {
+    case 'perfect': next = current + Math.max(3, 20 - current / 6); break;
+    case 'tone':    next = current - 8; break;
+    case 'vague':   next = current - Math.max(15, current / 3); break;
+    case 'noidea':  next = 0; break;
+  }
+  return Math.round(Math.max(0, Math.min(100, next)));
+}

@@ -15,6 +15,7 @@ export interface StudySession {
 }
 
 export interface AISettings {
+  enabled: boolean;
   provider: 'openai' | 'anthropic' | 'custom';
   apiKey: string;
   model: string;
