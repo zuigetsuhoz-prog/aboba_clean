@@ -61,6 +61,8 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
     else if (sortOpt === 'za') arr.sort((a, b) => b.pinyin.localeCompare(a.pinyin));
     else if (sortOpt === 'conf-asc') arr.sort((a, b) => a.confidence - b.confidence);
     else if (sortOpt === 'conf-desc') arr.sort((a, b) => b.confidence - a.confidence);
+    else if (sortOpt === 'review-asc') arr.sort((a, b) => a.reviewCount - b.reviewCount);
+    else if (sortOpt === 'review-desc') arr.sort((a, b) => b.reviewCount - a.reviewCount);
     return arr;
   }, [rawWords, sortOpt]);
 
@@ -105,13 +107,23 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
   const confidenceColor = (v: number) =>
     v <= 30 ? 'text-red-500' : v <= 60 ? 'text-orange-500' : 'text-green-600';
 
-  const sortOptions: { value: SortOption; label: string }[] = [
-    { value: 'default',   label: t.sortDefault },
-    { value: 'az',        label: t.sortAZ },
-    { value: 'za',        label: t.sortZA },
-    { value: 'conf-asc',  label: t.sortConfAsc },
-    { value: 'conf-desc', label: t.sortConfDesc },
-  ];
+  const cycleAlpha = () => {
+    setSort(sortOpt === 'az' ? 'za' : sortOpt === 'za' ? 'default' : 'az');
+  };
+  const cycleConf = () => {
+    setSort(sortOpt === 'conf-asc' ? 'conf-desc' : sortOpt === 'conf-desc' ? 'default' : 'conf-asc');
+  };
+  const cycleReview = () => {
+    setSort(sortOpt === 'review-asc' ? 'review-desc' : sortOpt === 'review-desc' ? 'default' : 'review-asc');
+  };
+
+  const alphaLabel = sortOpt === 'az' ? t.sortAZ : sortOpt === 'za' ? t.sortZA : t.sortAlpha;
+  const confLabel  = sortOpt === 'conf-asc' ? t.sortConfAsc : sortOpt === 'conf-desc' ? t.sortConfDesc : t.sortConf;
+  const revLabel   = sortOpt === 'review-asc' ? t.sortReviewAsc : sortOpt === 'review-desc' ? t.sortReviewDesc : t.sortReviews;
+
+  const alphaActive  = sortOpt === 'az' || sortOpt === 'za';
+  const confActive   = sortOpt === 'conf-asc' || sortOpt === 'conf-desc';
+  const reviewActive = sortOpt === 'review-asc' || sortOpt === 'review-desc';
 
   return (
     <div className="flex flex-col h-full">
@@ -173,20 +185,26 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
       {/* Sort bar */}
       {words.length > 1 && (
         <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-900
-                        border-b border-gray-100 dark:border-gray-800 overflow-x-auto">
+                        border-b border-gray-100 dark:border-gray-800">
           <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{t.sortBy}</span>
-          {sortOptions.map(o => (
-            <button
-              key={o.value}
-              onClick={() => setSort(o.value)}
-              className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium transition-colors
-                          ${sortOpt === o.value
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
-            >
-              {o.label}
-            </button>
-          ))}
+          <div className="flex gap-1.5">
+            {[
+              { key: 'alpha', label: alphaLabel,  active: alphaActive,  onClick: cycleAlpha },
+              { key: 'conf',  label: confLabel,   active: confActive,   onClick: cycleConf },
+              { key: 'rev',   label: revLabel,    active: reviewActive, onClick: cycleReview },
+            ].map(btn => (
+              <button
+                key={btn.key}
+                onClick={btn.onClick}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors
+                            ${btn.active
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -200,9 +218,14 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
           </div>
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-            {words.map(word => (
+            {words.map((word, idx) => (
               <li key={word.id} className="bg-white dark:bg-gray-900">
                 <div className="flex items-start gap-2 px-4 py-3">
+                  {/* Index number */}
+                  <span className="w-6 text-right text-xs text-gray-300 dark:text-gray-600
+                                   font-mono mt-2 shrink-0 select-none">
+                    {idx + 1}
+                  </span>
                   {/* Checkbox */}
                   {selectMode && (
                     <button

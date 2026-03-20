@@ -5,7 +5,7 @@ export type Tab = 'lists' | 'study' | 'settings' | 'search';
 
 export type CardSide = 0 | 1 | 2; // 0=hanzi, 1=pinyin, 2=translation
 
-export type SortOption = 'default' | 'az' | 'za' | 'conf-asc' | 'conf-desc';
+export type SortOption = 'default' | 'az' | 'za' | 'conf-asc' | 'conf-desc' | 'review-asc' | 'review-desc';
 
 export interface StudySession {
   sourceListIds: number[];
