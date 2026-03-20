@@ -53,7 +53,7 @@ export function SearchScreen({ lang, aiSettings, onOpenSettings }: Props) {
     v <= 30 ? 'text-red-500' : v <= 60 ? 'text-orange-500' : 'text-green-600';
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <header className="px-4 pt-3 pb-2 bg-white dark:bg-gray-900
                          border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{t.searchTitle}</h1>
@@ -69,7 +69,7 @@ export function SearchScreen({ lang, aiSettings, onOpenSettings }: Props) {
         />
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-6">
+      <div className="pb-6">
         {!query.trim() ? (
           <div className="flex flex-col items-center justify-center h-48 text-center px-8">
             <p className="text-4xl mb-2">🔍</p>

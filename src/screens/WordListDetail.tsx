@@ -126,7 +126,7 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
   const reviewActive = sortOpt === 'review-asc' || sortOpt === 'review-desc';
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* Header */}
       <header className="flex items-center gap-2 px-4 py-3 bg-white dark:bg-gray-900
                          border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
@@ -209,7 +209,7 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
       )}
 
       {/* Word list */}
-      <div className="flex-1 overflow-y-auto pb-6">
+      <div className="pb-6">
         {words.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center px-8">
             <p className="text-5xl mb-3">🈳</p>
@@ -346,9 +346,9 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
         )}
       </div>
 
-      {/* Multi-select action bar — in-flow footer */}
+      {/* Multi-select action bar — sticks to viewport bottom while scrolling */}
       {selectMode && selected.size > 0 && (
-        <div className="shrink-0 px-4 py-3 bg-white dark:bg-gray-900
+        <div className="sticky bottom-0 px-4 py-3 bg-white dark:bg-gray-900
                         border-t border-gray-200 dark:border-gray-700">
           <div className="flex gap-2">
             <button

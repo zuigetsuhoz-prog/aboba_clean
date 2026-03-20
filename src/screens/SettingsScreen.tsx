@@ -140,13 +140,13 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <header className="px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700
                          sticky top-0 z-10">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">{t.settingsTitle}</h1>
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-6">
+      <div className="pb-6">
         <div className="py-4 space-y-6 xl:space-y-0 xl:grid xl:grid-cols-2 xl:gap-6 xl:p-6 xl:items-start">
 
         {/* Appearance */}

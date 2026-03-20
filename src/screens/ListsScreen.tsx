@@ -59,7 +59,7 @@ export function ListsScreen({ aiSettings, lang, onOpenSettings }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <header className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900
                          border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">{t.wordLists}</h1>
@@ -72,7 +72,7 @@ export function ListsScreen({ aiSettings, lang, onOpenSettings }: Props) {
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-6">
+      <div className="pb-6">
         {!lists || lists.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center px-8">
             <p className="text-5xl mb-3">📝</p>

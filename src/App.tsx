@@ -71,7 +71,7 @@ export default function App() {
   return (
     <div className={`flex flex-col flex-1 ${settings.darkMode ? 'dark' : ''}`}>
       <div
-        className="flex flex-1 overflow-hidden"
+        className="flex flex-1"
         style={{ background: settings.darkMode ? '#111827' : '#f3f4f6' }}
       >
         {/* ── Left sidebar — lg+ only ───────────────────────────────────────── */}
@@ -86,10 +86,10 @@ export default function App() {
         </aside>
 
         {/* ── Main column ───────────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Screen area — fills all space above the tab bar */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Screen area — the sole scroll container for the center column */}
           <PanelCtx.Provider value={setPanel}>
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {activeTab === 'lists' && (
                 <ListsScreen
                   aiSettings={settings.ai}
@@ -125,7 +125,7 @@ export default function App() {
         </div>
 
         {/* ── Right context panel — xl+ only ───────────────────────────────── */}
-        <aside className="hidden xl:flex flex-col w-[300px] shrink-0
+        <aside className="hidden xl:flex flex-col w-[300px] shrink-0 overflow-y-auto
                           bg-white dark:bg-gray-900
                           border-l border-gray-200 dark:border-gray-700">
           {panelContent ?? <PanelPlaceholder />}

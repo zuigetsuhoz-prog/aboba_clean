@@ -181,43 +181,41 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
 
   // ── right panel: session word list ────────────────────────────────────────
   useEffect(() => {
+    // Right panel: sticky header + plain list (panel aside is the scroll container)
     setPanel(
-      <div className="flex flex-col h-full overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
+      <div>
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700
+                        sticky top-0 bg-white dark:bg-gray-900 z-10">
           <p className="text-sm font-semibold text-gray-900 dark:text-white">
             {t.cardProgress(currentIndex + 1, words.length)}
           </p>
         </div>
-        <div className="flex-1 overflow-y-auto">
-          {words.map((w, i) => (
-            <div
-              key={w.id}
-              className={`flex items-center gap-2 px-4 py-2.5
-                          border-b border-gray-100 dark:border-gray-800
-                          ${i === currentIndex
-                            ? 'bg-indigo-50 dark:bg-indigo-900/20'
-                            : ''}`}
-            >
-              <span className="w-5 text-right text-xs text-gray-400 dark:text-gray-600 shrink-0">
-                {i + 1}
-              </span>
-              <span className={`text-xl font-medium shrink-0
-                                ${i < currentIndex
-                                  ? 'text-gray-300 dark:text-gray-600'
-                                  : i === currentIndex
-                                    ? 'text-gray-900 dark:text-white'
-                                    : 'text-gray-500 dark:text-gray-400'}`}>
-                {w.hanzi}
-              </span>
-              <span className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                {w.translation}
-              </span>
-              {i === currentIndex && (
-                <span className="ml-auto text-indigo-500 text-xs shrink-0">▶</span>
-              )}
-            </div>
-          ))}
-        </div>
+        {words.map((w, i) => (
+          <div
+            key={w.id}
+            className={`flex items-center gap-2 px-4 py-2.5
+                        border-b border-gray-100 dark:border-gray-800
+                        ${i === currentIndex ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}
+          >
+            <span className="w-5 text-right text-xs text-gray-400 dark:text-gray-600 shrink-0">
+              {i + 1}
+            </span>
+            <span className={`text-xl font-medium shrink-0
+                              ${i < currentIndex
+                                ? 'text-gray-300 dark:text-gray-600'
+                                : i === currentIndex
+                                  ? 'text-gray-900 dark:text-white'
+                                  : 'text-gray-500 dark:text-gray-400'}`}>
+              {w.hanzi}
+            </span>
+            <span className="text-xs text-gray-400 dark:text-gray-500 truncate">
+              {w.translation}
+            </span>
+            {i === currentIndex && (
+              <span className="ml-auto text-indigo-500 text-xs shrink-0">▶</span>
+            )}
+          </div>
+        ))}
       </div>,
     );
     return () => setPanel(null);
@@ -226,7 +224,7 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   // ── completion screen ─────────────────────────────────────────────────────
   if (!currentWord) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 px-6
+      <div className="flex flex-col items-center justify-center min-h-full gap-4 px-6
                       bg-gray-100 dark:bg-gray-900">
         <p className="text-5xl">🎉</p>
         <p className="text-xl font-bold text-gray-900 dark:text-white">{t.sessionComplete}</p>
@@ -241,7 +239,7 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   const content = getContent(side, currentWord);
 
   return (
-    <div className="flex flex-col h-full bg-gray-100 dark:bg-gray-900">
+    <div className="flex flex-col min-h-full bg-gray-100 dark:bg-gray-900">
       {/* Header */}
       <header className="flex items-center justify-between px-3 py-2 bg-white dark:bg-gray-800
                          border-b border-gray-200 dark:border-gray-700">
