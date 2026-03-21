@@ -3,7 +3,7 @@ import { db, type Word, type WordList } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ConfidenceBar } from '../components/ConfidenceBar';
 import { AIModal } from '../components/AIModal';
-import { useTTS } from '../hooks/useTTS';
+import { playPinyin } from '../utils/pinyinAudio';
 import { useT } from '../i18n';
 import type { Lang } from '../types';
 import type { AISettings } from '../types';
@@ -24,7 +24,7 @@ export function SearchScreen({ lang, aiSettings, onOpenSettings }: Props) {
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
   const [aiWord, setAiWord] = useState<Word | null>(null);
-  const { speak, supported: ttsSupported } = useTTS();
+  const [playingId, setPlayingId] = useState<number | null>(null);
 
   const results = useLiveQuery<SearchResult[]>(async () => {
     const q = deferredQuery.trim().toLowerCase();
@@ -120,15 +120,21 @@ export function SearchScreen({ lang, aiSettings, onOpenSettings }: Props) {
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {ttsSupported && (
-                      <button
-                        onClick={() => speak(word.hanzi)}
-                        className="w-8 h-8 flex items-center justify-center rounded-full
-                                   text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-                      >
-                        🔊
-                      </button>
-                    )}
+                    <button
+                      disabled={playingId === word.id}
+                      onClick={async () => {
+                        setPlayingId(word.id!);
+                        await playPinyin(word.pinyin);
+                        setPlayingId(null);
+                      }}
+                      className={`w-8 h-8 flex items-center justify-center rounded-full
+                                 transition-opacity
+                                 ${playingId === word.id
+                                   ? 'opacity-40'
+                                   : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                    >
+                      {playingId === word.id ? '⏳' : '🔊'}
+                    </button>
                     {aiSettings.enabled && (
                       <button
                         onClick={() => setAiWord(word)}

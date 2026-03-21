@@ -89,8 +89,6 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   // ── audio playback ────────────────────────────────────────────────────────
   const speakCurrent = async () => {
     if (audioPlaying || !currentWord) return;
-    // Only play audio for Chinese sides (hanzi/pinyin); skip translation
-    if (side === 2) return;
     setAudioPlaying(true);
     setAudioError('');
     const result = await playPinyin(currentWord.pinyin);
@@ -280,19 +278,17 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
                         ${currentWord.notes ? 'text-amber-400' : 'text-gray-400 dark:text-gray-600'}`}>
             📝
           </button>
-          {/* Audio button — only shown on Chinese sides */}
-          {side !== 2 && (
-            <button
-              onClick={speakCurrent}
-              disabled={audioPlaying}
-              className={`w-8 h-8 flex items-center justify-center rounded-full
-                         transition-opacity
-                         ${audioPlaying ? 'opacity-50' : 'text-gray-500 active:bg-gray-100 dark:active:bg-gray-700'}`}
-              aria-label="Play pronunciation"
-            >
-              {audioPlaying ? '⏳' : '🔊'}
-            </button>
-          )}
+          {/* Audio button — always visible on all sides */}
+          <button
+            onClick={speakCurrent}
+            disabled={audioPlaying}
+            className={`w-8 h-8 flex items-center justify-center rounded-full
+                       transition-opacity
+                       ${audioPlaying ? 'opacity-50' : 'text-gray-500 active:bg-gray-100 dark:active:bg-gray-700'}`}
+            aria-label="Play pronunciation"
+          >
+            {audioPlaying ? '⏳' : '🔊'}
+          </button>
           {aiSettings.enabled && (
             <button onClick={() => setShowAI(true)}
               className="w-8 h-8 flex items-center justify-center rounded-full
