@@ -85,36 +85,35 @@ export default function App() {
   );
 
   return (
+    // Outer shell — dark-mode class carrier only; sizing comes from #root
     <div
       className={settings.darkMode ? 'dark' : ''}
-      style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100dvh', overflow: 'hidden', background: bg }}
+      style={{ width: '100vw', height: '100dvh', overflow: 'hidden', background: bg }}
     >
-      {/* ── MOBILE layout (< 1024px) ── */}
-      <div
-        className="lg:hidden"
-        style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}
-      >
-        {/* Mobile content area — the scroll container */}
+      {/* ── MOBILE layout (< 1024px) ──────────────────────────────────────
+           Tailwind controls display. NO inline display style here so that
+           lg:hidden can correctly set display:none on desktop.              */}
+      <div className="flex flex-col h-dvh overflow-hidden lg:hidden">
+        {/* Scrollable content */}
         <PanelCtx.Provider value={setPanel}>
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
             {screen}
           </div>
         </PanelCtx.Provider>
-        {/* Mobile bottom tab bar */}
+        {/* Fixed-height bottom tab bar */}
         <TabBar active={activeTab} onSelect={setActiveTab} lang={lang} />
       </div>
 
-      {/* ── DESKTOP layout (>= 1024px) ── */}
-      <div
-        className="hidden lg:flex"
-        style={{ flex: 1, minHeight: 0, overflow: 'hidden', height: '100dvh' }}
-      >
+      {/* ── DESKTOP layout (>= 1024px) ─────────────────────────────────────
+           Tailwind controls display. NO inline display style here so that
+           hidden can correctly set display:none on mobile.                  */}
+      <div className="hidden lg:flex h-dvh w-full overflow-hidden">
         {/* Left sidebar */}
         <aside
-          className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700"
-          style={{ flexShrink: 0, width: '260px', display: 'flex', flexDirection: 'column', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
+          className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col"
+          style={{ flexShrink: 0, width: '260px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
         >
-          <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-800" style={{ flexShrink: 0 }}>
+          <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-800 shrink-0">
             <p className="text-base font-bold text-gray-900 dark:text-white">BALBES files</p>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Offline-first</p>
           </div>
@@ -122,8 +121,7 @@ export default function App() {
         </aside>
 
         {/* Center column */}
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Center scroll container */}
+        <div className="flex flex-col overflow-hidden" style={{ flex: 1, minHeight: 0 }}>
           <PanelCtx.Provider value={setPanel}>
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
               {screen}
