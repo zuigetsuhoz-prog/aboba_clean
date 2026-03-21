@@ -203,8 +203,18 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
                   setAudioTestResult('');
                   const result = await playPinyin('nǐ hǎo');
                   setAudioTesting(false);
-                  setAudioTestResult(result === 'none' ? 'Files not found' : 'ok');
-                  setTimeout(() => setAudioTestResult(''), 3000);
+                  if (result === 'none') {
+                    // Probe the exact URL so the user can debug path issues
+                    try {
+                      const probe = await fetch('/audio/pinyin/ni3.mp3', { method: 'GET', headers: { Range: 'bytes=0-0' } });
+                      setAudioTestResult(`Not playable — HTTP ${probe.status} at /audio/pinyin/ni3.mp3`);
+                    } catch {
+                      setAudioTestResult('Not playable — /audio/pinyin/ni3.mp3 unreachable');
+                    }
+                  } else {
+                    setAudioTestResult('ok');
+                  }
+                  setTimeout(() => setAudioTestResult(''), 6000);
                 }}
                 className="px-4 py-2 bg-indigo-600 disabled:opacity-50 text-white rounded-lg
                            text-sm font-medium active:scale-95 transition-transform"

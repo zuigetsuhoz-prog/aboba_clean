@@ -1,50 +1,56 @@
 /**
  * pinyinAudio.ts
  * Plays pinyin syllables from local MP3 files in /audio/pinyin/.
- * Fully offline — no Web Speech API, no network dependency after first cache.
+ * Fully offline — no Web Speech API, no HEAD probing, no network dependencies.
+ *
+ * Strategy: just try to play each candidate Audio element directly.
+ * The browser's own error event handles missing files (404 → MediaError).
+ * This avoids the HEAD-request problem where Vite / service workers may
+ * return 405 or mis-cache the result, making all files appear absent.
  */
 
 const BASE_URL = '/audio/pinyin/';
 
-// ── In-memory audio cache ────────────────────────────────────────────────────
+// ── In-memory cache: filename → Audio element ────────────────────────────────
 const cache = new Map<string, HTMLAudioElement>();
 
 function getAudio(filename: string): HTMLAudioElement {
   if (!cache.has(filename)) {
+    // preload='none' → browser doesn't load until play() is called,
+    // so we don't burn bandwidth on files that may never be played.
     const audio = new Audio(`${BASE_URL}${filename}`);
-    audio.preload = 'auto';
+    audio.preload = 'none';
     cache.set(filename, audio);
   }
   return cache.get(filename)!;
 }
 
-// ── Tone mark → (base letter + tone number) ─────────────────────────────────
-// Maps each diacritical vowel to [stripped vowel, tone number]
+// ── Tone-mark → (stripped vowel, tone number) table ─────────────────────────
 const TONE_MAP: Record<string, [string, number]> = {
   'ā': ['a', 1], 'á': ['a', 2], 'ǎ': ['a', 3], 'à': ['a', 4],
   'ē': ['e', 1], 'é': ['e', 2], 'ě': ['e', 3], 'è': ['e', 4],
   'ī': ['i', 1], 'í': ['i', 2], 'ǐ': ['i', 3], 'ì': ['i', 4],
   'ō': ['o', 1], 'ó': ['o', 2], 'ǒ': ['o', 3], 'ò': ['o', 4],
   'ū': ['u', 1], 'ú': ['u', 2], 'ǔ': ['u', 3], 'ù': ['u', 4],
-  // ü with tones
   'ǖ': ['u', 1], 'ǘ': ['u', 2], 'ǚ': ['u', 3], 'ǜ': ['u', 4],
-  // ü without tone → treat as base 'u' (yu/lü/nü → yu/lu/nu in this dataset)
   'ü': ['u', 0],
 };
 
 /**
- * Convert one pinyin syllable with tone marks to a filename base + tone number.
- * e.g. "nǐ" → { base: "ni", tone: 3 }
- *      "hǎo" → { base: "hao", tone: 3 }
- *      "ma" → { base: "ma", tone: 5 }  (neutral)
+ * "nǐ" → { base: "ni", tone: 3 }
+ * "hǎo" → { base: "hao", tone: 3 }
+ * "ma"  → { base: "ma",  tone: 5 }  (no mark = neutral)
  */
 function parseSyllable(syllable: string): { base: string; tone: number } {
+  // Normalise to NFC so precomposed tone letters always match the table keys
+  const s = syllable.normalize('NFC');
   let base = '';
-  let tone = 0; // 0 = no diacritic found yet
+  let tone = 0;
 
-  for (const ch of syllable) {
-    if (TONE_MAP[ch]) {
-      const [letter, t] = TONE_MAP[ch];
+  for (const ch of s) {
+    const mapped = TONE_MAP[ch];
+    if (mapped) {
+      const [letter, t] = mapped;
       base += letter;
       if (t > 0) tone = t;
     } else {
@@ -52,82 +58,64 @@ function parseSyllable(syllable: string): { base: string; tone: number } {
     }
   }
 
-  // Neutral tone = 5 when no tone mark was present
-  if (tone === 0) tone = 5;
+  if (tone === 0) tone = 5; // no diacritic → neutral tone
   return { base, tone };
 }
 
 /**
- * Convert a full pinyin string (possibly multi-syllable, space-separated)
- * into an ordered list of MP3 filenames to try.
- * Falls back: try tone5 files only if they exist (most syllables are 1-4 only).
+ * Returns an ordered list of candidate filenames for each syllable.
+ * First candidate is the exact tone; neutral-tone syllables also fall back
+ * to tones 1-4 in case the dataset only has those.
  */
 function pinyinToFilenames(pinyin: string): string[][] {
-  // Split on spaces, filter empty
-  const syllables = pinyin
+  return pinyin
     .toLowerCase()
     .trim()
     .split(/\s+/)
-    .filter(Boolean);
-
-  return syllables.map(syl => {
-    const { base, tone } = parseSyllable(syl);
-    const candidates: string[] = [];
-
-    if (tone >= 1 && tone <= 5) {
-      candidates.push(`${base}${tone}.mp3`);
-    }
-    // Also try without tone suffix for edge cases
-    if (tone === 5) {
-      // Some neutral-tone syllables only exist as tone 5 in this dataset
-      // Try tones 1-4 as last-resort fallback
-      for (let t = 1; t <= 4; t++) candidates.push(`${base}${t}.mp3`);
-    }
-
-    return candidates;
-  });
+    .filter(Boolean)
+    .map(syl => {
+      const { base, tone } = parseSyllable(syl);
+      const candidates: string[] = [];
+      if (tone >= 1 && tone <= 5) candidates.push(`${base}${tone}.mp3`);
+      if (tone === 5) {
+        // Neutral-tone fallback: some syllables only have numbered tones
+        for (let t = 1; t <= 4; t++) candidates.push(`${base}${t}.mp3`);
+      }
+      return candidates;
+    });
 }
 
-// ── Probe whether an audio file exists (HEAD request, cached) ────────────────
-const existsCache = new Map<string, boolean>();
-
-async function fileExists(filename: string): Promise<boolean> {
-  if (existsCache.has(filename)) return existsCache.get(filename)!;
-  try {
-    const r = await fetch(`${BASE_URL}${filename}`, { method: 'HEAD' });
-    const ok = r.ok;
-    existsCache.set(filename, ok);
-    return ok;
-  } catch {
-    existsCache.set(filename, false);
-    return false;
-  }
-}
-
-// ── Play a single audio element, resolve when done ───────────────────────────
+// ── Play one Audio element; resolve true on success, false on any error ───────
 function playAudio(audio: HTMLAudioElement): Promise<boolean> {
   return new Promise(resolve => {
-    // Reset to start in case previously played
-    audio.currentTime = 0;
+    // If a previous load attempt already hard-errored, bail immediately
+    if (audio.error) { resolve(false); return; }
+
     const onEnded = () => { cleanup(); resolve(true); };
     const onError = () => { cleanup(); resolve(false); };
+
     function cleanup() {
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('error', onError);
     }
+
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('error', onError);
+
+    // Reset position so re-plays work correctly
+    audio.currentTime = 0;
     audio.play().catch(() => { cleanup(); resolve(false); });
   });
 }
 
-// ── Public API ───────────────────────────────────────────────────────────────
+// ── Public API ────────────────────────────────────────────────────────────────
 
 export type PlayResult = 'ok' | 'partial' | 'none';
 
 /**
- * Play all syllables in the given pinyin string sequentially.
- * Returns 'ok' if all syllables played, 'partial' if some did, 'none' if none did.
+ * Play all syllables in the pinyin string sequentially.
+ * Returns 'ok' | 'partial' | 'none' depending on how many syllables played.
+ * Missing files are silently skipped (browser MediaError → resolve(false)).
  */
 export async function playPinyin(pinyin: string): Promise<PlayResult> {
   const syllableOptions = pinyinToFilenames(pinyin);
@@ -136,22 +124,21 @@ export async function playPinyin(pinyin: string): Promise<PlayResult> {
   let played = 0;
 
   for (let i = 0; i < syllableOptions.length; i++) {
-    const candidates = syllableOptions[i];
     let succeeded = false;
 
-    for (const filename of candidates) {
-      const exists = await fileExists(filename);
-      if (!exists) continue;
+    for (const filename of syllableOptions[i]) {
       const audio = getAudio(filename);
       const ok = await playAudio(audio);
       if (ok) { succeeded = true; break; }
+      // If playback failed, evict from cache so the next attempt re-creates
+      // the Audio element (avoids a stuck MediaError state)
+      cache.delete(filename);
     }
 
     if (succeeded) {
       played++;
-      // Small gap between syllables (skip after the last one)
       if (i < syllableOptions.length - 1) {
-        await new Promise(r => setTimeout(r, 80));
+        await new Promise<void>(r => setTimeout(r, 80));
       }
     }
   }
@@ -162,30 +149,18 @@ export async function playPinyin(pinyin: string): Promise<PlayResult> {
 }
 
 /**
- * Returns true if at least the first syllable's primary file appears to exist.
- * Lightweight check — uses HEAD request with caching.
- */
-export async function canPlayPinyin(pinyin: string): Promise<boolean> {
-  const syllableOptions = pinyinToFilenames(pinyin);
-  if (syllableOptions.length === 0) return false;
-  for (const filename of syllableOptions[0]) {
-    if (await fileExists(filename)) return true;
-  }
-  return false;
-}
-
-/**
- * Pre-warm the cache for a list of pinyin strings.
- * Call this when a word list is opened so audio plays instantly.
+ * Pre-warm the audio cache for a list of pinyin strings.
+ * Creates Audio elements with preload='auto' so they buffer in the background.
  */
 export function prewarmCache(pinyinList: string[]): void {
   for (const pinyin of pinyinList) {
-    const syllableOptions = pinyinToFilenames(pinyin);
-    for (const candidates of syllableOptions) {
-      // Only prewarm the primary candidate per syllable
+    for (const candidates of pinyinToFilenames(pinyin)) {
       const filename = candidates[0];
-      if (filename && !cache.has(filename)) {
-        getAudio(filename); // creates + preloads the Audio element
+      if (!filename) continue;
+      if (!cache.has(filename)) {
+        const audio = new Audio(`${BASE_URL}${filename}`);
+        audio.preload = 'auto';
+        cache.set(filename, audio);
       }
     }
   }
