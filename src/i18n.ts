@@ -89,6 +89,10 @@ const en = {
   pinyinPh: 'e.g. zh, n',
   maxConfidence: 'Max confidence',
   randomShuffle: 'Random shuffle',
+  startingFace: 'Starting card face',
+  startingFaceHanzi: '汉字 Hanzi',
+  startingFacePinyin: 'Pinyin',
+  startingFaceTranslation: 'Translation',
   wordsSelected: 'words selected',
   startSession: 'Start Session →',
 
@@ -207,6 +211,10 @@ const ru: Translations = {
   pinyinPh: 'напр. zh, n',
   maxConfidence: 'Макс. уверенность',
   randomShuffle: 'Случайный порядок',
+  startingFace: 'Начальная сторона',
+  startingFaceHanzi: '汉字 Иероглиф',
+  startingFacePinyin: 'Пиньинь',
+  startingFaceTranslation: 'Перевод',
   wordsSelected: 'слов выбрано',
   startSession: 'Начать сессию →',
 

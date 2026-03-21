@@ -3,7 +3,7 @@ import { db, type Word, getWordsForList, stripTones } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { FlashcardScreen } from './FlashcardScreen';
 import { useT } from '../i18n';
-import type { AISettings, Lang } from '../types';
+import type { AISettings, CardSide, Lang } from '../types';
 
 const SUBLIST_SIZE = 25;
 
@@ -74,6 +74,7 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
   const [pinyinFilter, setPinyinFilter] = useState('');
   const [maxConfidence, setMaxConfidence] = useState('');
   const [shuffle, setShuffle] = useState(false);
+  const [startFace, setStartFace] = useState<CardSide>(0);
   const [session, setSession] = useState<Word[] | null>(null);
 
   const lists = useLiveQuery(() => db.wordLists.orderBy('name').toArray(), []);
@@ -222,6 +223,7 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
         onExit={() => setSession(null)}
         aiSettings={aiSettings}
         onOpenSettings={onOpenSettings}
+        initialSide={startFace}
       />
     );
   }
@@ -370,6 +372,28 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
                 {t.randomShuffle}
               </label>
               <Toggle on={shuffle} onToggle={() => setShuffle(s => !s)} />
+            </div>
+            <div className="flex items-start gap-3">
+              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0 pt-1">
+                {t.startingFace}
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {([0, 1, 2] as CardSide[]).map((face, i) => {
+                  const labels = [t.startingFaceHanzi, t.startingFacePinyin, t.startingFaceTranslation];
+                  return (
+                    <button
+                      key={face}
+                      onClick={() => setStartFace(face)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+                        ${startFace === face
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+                    >
+                      {labels[i]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </section>

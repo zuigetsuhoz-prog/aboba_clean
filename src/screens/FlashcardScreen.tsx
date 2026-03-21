@@ -13,6 +13,7 @@ interface Props {
   onExit: () => void;
   aiSettings: AISettings;
   onOpenSettings: () => void;
+  initialSide?: CardSide;
 }
 
 interface CardHistoryEntry {
@@ -33,15 +34,15 @@ const RATINGS: { key: RatingKey; labelKey: 'ratePerfect' | 'rateTone' | 'rateVag
   { key: 'noidea',  labelKey: 'rateNoIdea',  color: 'bg-red-500' },
 ];
 
-export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings, onOpenSettings }: Props) {
+export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings, onOpenSettings, initialSide = 0 }: Props) {
   const t = useT(lang);
   const setPanel = usePanelContent();
 
   // ── session state ─────────────────────────────────────────────────────────
   const [words, setWords] = useState<Word[]>(initialWords);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [side, setSide] = useState<CardSide>(0);
-  const [visitedSides, setVisitedSides] = useState<Set<number>>(new Set([0]));
+  const [side, setSide] = useState<CardSide>(initialSide);
+  const [visitedSides, setVisitedSides] = useState<Set<number>>(new Set([initialSide]));
   const [history, setHistory] = useState<CardHistoryEntry[]>([]);
 
   // ── animation ─────────────────────────────────────────────────────────────
@@ -73,8 +74,8 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
       setSide(newSide);
       setVisitedSides(prev => new Set([...prev, newSide]));
       setAnimClass(dir === 'right' ? 'slide-in-right' : 'slide-in-left');
-      window.setTimeout(() => setAnimClass(''), 250);
-    }, 200);
+      window.setTimeout(() => setAnimClass(''), 150);
+    }, 100);
   }, [side, animClass]);
 
   const handleTap = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -110,11 +111,11 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
     clearTimeout(animTimeout.current);
     animTimeout.current = window.setTimeout(() => {
       setCurrentIndex(i => i + 1);
-      setSide(0);
-      setVisitedSides(new Set([0]));
+      setSide(initialSide);
+      setVisitedSides(new Set([initialSide]));
       setAnimClass('slide-in-right');
-      window.setTimeout(() => setAnimClass(''), 250);
-    }, 200);
+      window.setTimeout(() => setAnimClass(''), 150);
+    }, 100);
   }, [currentIndex, words.length, onExit]);
 
   // ── go back ───────────────────────────────────────────────────────────────
@@ -143,8 +144,8 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
       setVisitedSides(new Set(entry.visitedSides));
       setRatingFeedback('');
       setAnimClass('slide-in-left');
-      window.setTimeout(() => setAnimClass(''), 250);
-    }, 200);
+      window.setTimeout(() => setAnimClass(''), 150);
+    }, 100);
   };
 
   // ── rating ────────────────────────────────────────────────────────────────
@@ -239,100 +240,95 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   const content = getContent(side, currentWord);
 
   return (
-    <div className="flex flex-col min-h-svh bg-gray-100 dark:bg-gray-900">
-      {/* Header */}
-      <header className="flex items-center justify-between px-3 py-2 bg-white dark:bg-gray-800
-                         border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-1">
+    // height:100% fills the scroll container; overflow:hidden prevents any internal scroll
+    <div className="bg-gray-100 dark:bg-gray-900" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+      {/* ── Top bar ── flex-shrink:0 */}
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
+        style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
           <button
             onClick={onExit}
             className="px-2 py-1.5 text-sm text-gray-600 dark:text-gray-400 font-medium
                        active:bg-gray-100 dark:active:bg-gray-700 rounded-lg"
-          >
-            {t.exitSession}
-          </button>
+          >{t.exitSession}</button>
           <button
             onClick={goBack}
             disabled={history.length === 0}
             className="px-2 py-1.5 text-sm font-medium rounded-lg
                        text-indigo-600 dark:text-indigo-400
                        disabled:opacity-30 active:bg-indigo-50 dark:active:bg-indigo-900/20"
-          >
-            {t.back}
-          </button>
+          >{t.back}</button>
         </div>
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
           {t.cardProgress(currentIndex + 1, words.length)}
         </span>
-        <div className="flex gap-0.5">
-          <button
-            onClick={openNote}
+        <div style={{ display: 'flex', gap: '2px' }}>
+          <button onClick={openNote}
             className={`w-8 h-8 flex items-center justify-center rounded-full
-                        ${currentWord.notes ? 'text-amber-400' : 'text-gray-400 dark:text-gray-600'}`}
-          >
+                        ${currentWord.notes ? 'text-amber-400' : 'text-gray-400 dark:text-gray-600'}`}>
             📝
           </button>
           {ttsSupported && (
             <button onClick={speakCurrent}
               className="w-8 h-8 flex items-center justify-center rounded-full
-                         text-gray-500 active:bg-gray-100 dark:active:bg-gray-700">
-              🔊
-            </button>
+                         text-gray-500 active:bg-gray-100 dark:active:bg-gray-700">🔊</button>
           )}
           {aiSettings.enabled && (
             <button onClick={() => setShowAI(true)}
               className="w-8 h-8 flex items-center justify-center rounded-full
-                         text-gray-500 active:bg-gray-100 dark:active:bg-gray-700">
-              ✨
-            </button>
+                         text-gray-500 active:bg-gray-100 dark:active:bg-gray-700">✨</button>
           )}
         </div>
       </header>
 
-      {/* Progress bar */}
-      <div className="h-1 bg-gray-200 dark:bg-gray-700">
-        <div className="h-full bg-indigo-500 transition-all duration-300"
+      {/* ── Progress bar ── flex-shrink:0 */}
+      <div className="bg-gray-200 dark:bg-gray-700" style={{ flexShrink: 0, height: '3px' }}>
+        <div className="bg-indigo-500 h-full transition-all duration-300"
           style={{ width: `${((currentIndex + 1) / words.length) * 100}%` }} />
       </div>
 
-      {/* Card tap area */}
+      {/* ── Card area ── flex:1, min-height:0, no scroll */}
       <div
-        className="flex-1 flex flex-col items-center justify-center px-4 select-none
-                   cursor-pointer relative overflow-hidden"
         onClick={handleTap}
+        style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 16px', cursor: 'pointer', userSelect: 'none', position: 'relative', overflow: 'hidden' }}
       >
         <div className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-300 dark:text-gray-700
                         text-2xl pointer-events-none">‹</div>
         <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 dark:text-gray-700
                         text-2xl pointer-events-none">›</div>
 
-        <div className="mb-3">
+        {/* Side badge */}
+        <div style={{ flexShrink: 0, marginBottom: '8px' }}>
           <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700
                            dark:text-indigo-300 rounded-full text-xs font-semibold">
             {SIDE_LABELS[side]}
           </span>
         </div>
 
-        <div className={`w-full max-w-sm sm:max-w-md lg:max-w-[520px] xl:max-w-[500px] ${animClass}`}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-8
-                          min-h-[180px] sm:min-h-[220px] lg:min-h-[240px]
-                          flex flex-col items-center justify-center text-center">
+        {/* Card — flex:1 min-height:0 so it shrinks on small screens */}
+        <div className={`w-full ${animClass}`}
+          style={{ flex: 1, minHeight: 0, maxWidth: '520px', display: 'flex', flexDirection: 'column' }}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md
+                          flex flex-col items-center justify-center text-center"
+            style={{ flex: 1, minHeight: 0, padding: '24px 20px' }}>
             {side === 0 && (
-              <p className="text-6xl font-medium text-gray-900 dark:text-white leading-tight">
-                {content}
-              </p>
+              <p className="font-medium text-gray-900 dark:text-white leading-tight"
+                style={{ fontSize: 'clamp(2rem, 8vw, 4rem)' }}>{content}</p>
             )}
             {side === 1 && (
-              <p className="text-3xl text-indigo-600 dark:text-indigo-400 font-medium">{content}</p>
+              <p className="text-indigo-600 dark:text-indigo-400 font-medium"
+                style={{ fontSize: 'clamp(1.25rem, 5vw, 2rem)' }}>{content}</p>
             )}
             {side === 2 && (
-              <p className="text-2xl text-gray-700 dark:text-gray-300 font-medium">{content}</p>
+              <p className="text-gray-700 dark:text-gray-300 font-medium"
+                style={{ fontSize: 'clamp(1rem, 4vw, 1.5rem)' }}>{content}</p>
             )}
           </div>
         </div>
 
-        {/* Side dots */}
-        <div className="flex gap-2 mt-4">
+        {/* Dots */}
+        <div style={{ flexShrink: 0, display: 'flex', gap: '8px', marginTop: '8px' }}>
           {([0, 1, 2] as CardSide[]).map(s => (
             <div key={s} className={`w-2 h-2 rounded-full transition-colors ${
               s === side ? 'bg-indigo-600'
@@ -340,34 +336,38 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
               : 'bg-gray-300 dark:bg-gray-700'}`} />
           ))}
         </div>
-        <p className="mt-2 text-xs text-gray-400 dark:text-gray-600 pointer-events-none">
+        <p className="text-xs text-gray-400 dark:text-gray-600 pointer-events-none"
+          style={{ flexShrink: 0, marginTop: '4px' }}>
           {t.tapHint}
         </p>
       </div>
 
-      {/* Rating buttons — always visible */}
-      <div className="px-4 pb-4 sm:pb-6 bg-white dark:bg-gray-800
-                      border-t border-gray-200 dark:border-gray-700">
+      {/* ── Rating section ── flex-shrink:0 */}
+      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700"
+        style={{ flexShrink: 0, padding: '8px 16px 10px' }}>
         {ratingFeedback ? (
-          <div className="py-4 text-center text-lg font-semibold text-gray-700 dark:text-gray-300 fade-in">
+          <div className="text-center text-base font-semibold text-gray-700 dark:text-gray-300 fade-in"
+            style={{ padding: '10px 0' }}>
             {ratingFeedback}
           </div>
         ) : (
-          <div className="py-3">
-            <p className="text-xs text-center text-gray-400 dark:text-gray-500 mb-2">{t.howWell}</p>
-            <div className="grid grid-cols-2 gap-2">
+          <>
+            <p className="text-xs text-center text-gray-400 dark:text-gray-500"
+              style={{ marginBottom: '6px' }}>{t.howWell}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               {RATINGS.map(r => (
                 <button
                   key={r.key}
                   onClick={() => applyRating(r.key, t[r.labelKey])}
-                  className={`${r.color} text-white py-2.5 rounded-xl text-sm font-medium
+                  className={`${r.color} text-white rounded-xl text-sm font-medium
                                active:scale-95 transition-transform`}
+                  style={{ padding: '10px 8px' }}
                 >
                   {t[r.labelKey]}
                 </button>
               ))}
             </div>
-          </div>
+          </>
         )}
       </div>
 
