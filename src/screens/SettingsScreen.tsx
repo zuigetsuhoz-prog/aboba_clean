@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { db, getWordsForList } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useTTS } from '../hooks/useTTS';
+import { playPinyin } from '../utils/pinyinAudio';
 import { useT } from '../i18n';
 import type { AppSettings, AISettings, Lang } from '../types';
 
@@ -40,7 +40,8 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 export function SettingsScreen({ settings, onUpdateSettings }: Props) {
   const lang: Lang = settings.language ?? 'en';
   const t = useT(lang);
-  const { speak, supported: ttsSupported } = useTTS();
+  const [audioTesting, setAudioTesting] = useState(false);
+  const [audioTestResult, setAudioTestResult] = useState('');
   const [importStatus, setImportStatus] = useState('');
   const [exportListId, setExportListId] = useState<number | ''>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -179,27 +180,38 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
           </div>
         </section>
 
-        {/* TTS */}
+        {/* Audio */}
         <section className="px-4 xl:px-0">
           <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-            {t.tts}
+            {t.audioSection}
           </h2>
           <div className="bg-white dark:bg-gray-800 rounded-xl px-4 py-3">
-            {ttsSupported ? (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white">Web Speech API</p>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">{t.ttsAvailable}</p>
-                </div>
-                <button onClick={() => speak('你好，欢迎学习中文！', 'zh-CN')}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium
-                             active:scale-95 transition-transform">
-                  {t.ttsTest}
-                </button>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Pinyin MP3</p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">{t.audioWorking}</p>
+                {audioTestResult && (
+                  <p className={`text-xs mt-1 ${audioTestResult === 'ok' ? 'text-green-600 dark:text-green-400' : 'text-orange-500'}`}>
+                    {audioTestResult === 'ok' ? '✓ Playing!' : '✗ ' + audioTestResult}
+                  </p>
+                )}
               </div>
-            ) : (
-              <p className="text-sm text-orange-500 dark:text-orange-400">{t.ttsUnavailable}</p>
-            )}
+              <button
+                disabled={audioTesting}
+                onClick={async () => {
+                  setAudioTesting(true);
+                  setAudioTestResult('');
+                  const result = await playPinyin('nǐ hǎo');
+                  setAudioTesting(false);
+                  setAudioTestResult(result === 'none' ? 'Files not found' : 'ok');
+                  setTimeout(() => setAudioTestResult(''), 3000);
+                }}
+                className="px-4 py-2 bg-indigo-600 disabled:opacity-50 text-white rounded-lg
+                           text-sm font-medium active:scale-95 transition-transform"
+              >
+                {audioTesting ? '⏳' : t.audioTest}
+              </button>
+            </div>
           </div>
         </section>
 

@@ -74,6 +74,7 @@ const en = {
   sessionComplete: 'Session Complete!',
   done: 'Done',
   tapHint: 'Tap left / right to navigate sides',
+  audioUnavailable: 'Audio not available for this word',
   back: '← Back',
   noteModalTitle: 'Notes',
   noteSave: 'Save',
@@ -95,6 +96,11 @@ const en = {
   startingFaceTranslation: 'Translation',
   wordsSelected: 'words selected',
   startSession: 'Start Session →',
+
+  // Settings audio
+  audioSection: 'Audio',
+  audioTest: '🔊 Test "nǐ hǎo"',
+  audioWorking: 'Local MP3 audio — works fully offline',
 
   // Settings
   settingsTitle: '⚙️ Settings',
@@ -197,6 +203,7 @@ const ru: Translations = {
   sessionComplete: 'Сессия завершена!',
   done: 'Готово',
   tapHint: 'Нажмите влево / вправо',
+  audioUnavailable: 'Аудио для этого слова недоступно',
   back: '← Назад',
   noteModalTitle: 'Заметки',
   noteSave: 'Сохранить',
@@ -217,6 +224,10 @@ const ru: Translations = {
   startingFaceTranslation: 'Перевод',
   wordsSelected: 'слов выбрано',
   startSession: 'Начать сессию →',
+
+  audioSection: 'Аудио',
+  audioTest: '🔊 Тест "nǐ hǎo"',
+  audioWorking: 'Локальные MP3 — работает полностью офлайн',
 
   settingsTitle: '⚙️ Настройки',
   appearance: 'Внешний вид',

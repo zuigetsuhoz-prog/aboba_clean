@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { db, type Word, calcConfidence, type RatingKey } from '../db';
 import { AIModal } from '../components/AIModal';
 import { Modal } from '../components/Modal';
-import { useTTS } from '../hooks/useTTS';
+import { playPinyin } from '../utils/pinyinAudio';
 import { useT } from '../i18n';
 import { usePanelContent } from '../contexts/PanelContext';
 import type { AISettings, CardSide, Lang } from '../types';
@@ -57,7 +57,9 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   // ── rating feedback ───────────────────────────────────────────────────────
   const [ratingFeedback, setRatingFeedback] = useState('');
 
-  const { speak, supported: ttsSupported } = useTTS();
+  // ── audio state ───────────────────────────────────────────────────────────
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioError, setAudioError] = useState('');
 
   const currentWord = words[currentIndex];
 
@@ -84,10 +86,19 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
     else if (pct > 0.55) changeSide('right');
   }, [changeSide]);
 
-  // ── TTS ───────────────────────────────────────────────────────────────────
-  const speakCurrent = () => {
-    if (!ttsSupported || !currentWord) return;
-    speak(getContent(side, currentWord), side === 2 ? 'en-US' : 'zh-CN');
+  // ── audio playback ────────────────────────────────────────────────────────
+  const speakCurrent = async () => {
+    if (audioPlaying || !currentWord) return;
+    // Only play audio for Chinese sides (hanzi/pinyin); skip translation
+    if (side === 2) return;
+    setAudioPlaying(true);
+    setAudioError('');
+    const result = await playPinyin(currentWord.pinyin);
+    setAudioPlaying(false);
+    if (result === 'none') {
+      setAudioError(t.audioUnavailable);
+      setTimeout(() => setAudioError(''), 3000);
+    }
   };
 
   // ── notes modal ───────────────────────────────────────────────────────────
@@ -241,7 +252,7 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
 
   return (
     // height:100% fills the scroll container; overflow:hidden prevents any internal scroll
-    <div className="bg-gray-100 dark:bg-gray-900" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="bg-gray-100 dark:bg-gray-900" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
 
       {/* ── Top bar ── flex-shrink:0 */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
@@ -263,16 +274,24 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
           {t.cardProgress(currentIndex + 1, words.length)}
         </span>
-        <div style={{ display: 'flex', gap: '2px' }}>
+        <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
           <button onClick={openNote}
             className={`w-8 h-8 flex items-center justify-center rounded-full
                         ${currentWord.notes ? 'text-amber-400' : 'text-gray-400 dark:text-gray-600'}`}>
             📝
           </button>
-          {ttsSupported && (
-            <button onClick={speakCurrent}
-              className="w-8 h-8 flex items-center justify-center rounded-full
-                         text-gray-500 active:bg-gray-100 dark:active:bg-gray-700">🔊</button>
+          {/* Audio button — only shown on Chinese sides */}
+          {side !== 2 && (
+            <button
+              onClick={speakCurrent}
+              disabled={audioPlaying}
+              className={`w-8 h-8 flex items-center justify-center rounded-full
+                         transition-opacity
+                         ${audioPlaying ? 'opacity-50' : 'text-gray-500 active:bg-gray-100 dark:active:bg-gray-700'}`}
+              aria-label="Play pronunciation"
+            >
+              {audioPlaying ? '⏳' : '🔊'}
+            </button>
           )}
           {aiSettings.enabled && (
             <button onClick={() => setShowAI(true)}
@@ -370,6 +389,15 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
           </>
         )}
       </div>
+
+      {/* Audio error toast */}
+      {audioError && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2
+                        bg-gray-800 text-white text-xs px-4 py-2 rounded-full
+                        shadow-lg fade-in pointer-events-none z-20">
+          {audioError}
+        </div>
+      )}
 
       {/* Note modal */}
       {showNote && (
