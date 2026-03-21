@@ -99,8 +99,8 @@ const en = {
 
   // Settings audio
   audioSection: 'Audio',
-  audioTest: '🔊 Test "nǐ hǎo"',
-  audioWorking: 'Local MP3 audio — works fully offline',
+  audioTest: '🔊 Test 你好',
+  audioWorking: 'Google Translate TTS — requires internet',
 
   // Settings
   settingsTitle: '⚙️ Settings',
@@ -226,8 +226,8 @@ const ru: Translations = {
   startSession: 'Начать сессию →',
 
   audioSection: 'Аудио',
-  audioTest: '🔊 Тест "nǐ hǎo"',
-  audioWorking: 'Локальные MP3 — работает полностью офлайн',
+  audioTest: '🔊 Тест 你好',
+  audioWorking: 'Google Translate TTS — нужен интернет',
 
   settingsTitle: '⚙️ Настройки',
   appearance: 'Внешний вид',

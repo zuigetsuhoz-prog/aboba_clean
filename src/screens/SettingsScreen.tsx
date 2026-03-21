@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { db, getWordsForList } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { playPinyin } from '../utils/pinyinAudio';
+import { playGoogleTTS } from '../utils/googleTTS';
 import { useT } from '../i18n';
 import type { AppSettings, AISettings, Lang } from '../types';
 
@@ -188,7 +188,7 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
           <div className="bg-white dark:bg-gray-800 rounded-xl px-4 py-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-gray-900 dark:text-white">Pinyin MP3</p>
+                <p className="font-medium text-gray-900 dark:text-white">Google Translate TTS</p>
                 <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">{t.audioWorking}</p>
                 {audioTestResult && (
                   <p className={`text-xs mt-1 ${audioTestResult === 'ok' ? 'text-green-600 dark:text-green-400' : 'text-orange-500'}`}>
@@ -201,20 +201,10 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
                 onClick={async () => {
                   setAudioTesting(true);
                   setAudioTestResult('');
-                  const result = await playPinyin('nǐ hǎo');
+                  const result = await playGoogleTTS('你好');
                   setAudioTesting(false);
-                  if (result === 'none') {
-                    // Probe the exact URL so the user can debug path issues
-                    try {
-                      const probe = await fetch('/audio/pinyin/ni3.mp3', { method: 'GET', headers: { Range: 'bytes=0-0' } });
-                      setAudioTestResult(`Not playable — HTTP ${probe.status} at /audio/pinyin/ni3.mp3`);
-                    } catch {
-                      setAudioTestResult('Not playable — /audio/pinyin/ni3.mp3 unreachable');
-                    }
-                  } else {
-                    setAudioTestResult('ok');
-                  }
-                  setTimeout(() => setAudioTestResult(''), 6000);
+                  setAudioTestResult(result === 'none' ? 'Audio unavailable' : 'ok');
+                  setTimeout(() => setAudioTestResult(''), 4000);
                 }}
                 className="px-4 py-2 bg-indigo-600 disabled:opacity-50 text-white rounded-lg
                            text-sm font-medium active:scale-95 transition-transform"
