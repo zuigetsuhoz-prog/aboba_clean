@@ -59,20 +59,16 @@ function PanelPlaceholder() {
   );
 }
 
-function SyncDot({ status }: { status: SyncStatus }) {
-  const colorClass =
-    status === 'synced'  ? 'text-green-500' :
-    status === 'syncing' ? 'text-indigo-400 animate-pulse' :
-    status === 'offline' ? 'text-orange-400' :
-    status === 'error'   ? 'text-red-400' :
-    'text-gray-400';
-  const label =
-    status === 'synced'  ? '✓' :
-    status === 'syncing' ? '⟳' :
-    status === 'offline' ? '⊘' :
-    status === 'error'   ? '⚠' : '';
-  if (!label) return null;
-  return <span className={`text-xs font-mono ${colorClass}`}>{label}</span>;
+function SyncDot({ status, lastSyncedAt }: { status: SyncStatus; lastSyncedAt: number | null }) {
+  if (status === 'syncing') return <span className="text-xs text-indigo-400 animate-pulse">⟳</span>;
+  if (status === 'error')   return <span className="text-xs text-red-400">⚠</span>;
+  if (status === 'offline') return <span className="text-xs text-orange-400">⊘</span>;
+  if (lastSyncedAt) {
+    const d = new Date(lastSyncedAt);
+    const label = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return <span className="text-xs text-green-500">✓ {label}</span>;
+  }
+  return <span className="text-xs text-gray-400">Not synced</span>;
 }
 
 function AppContent() {
@@ -81,7 +77,7 @@ function AppContent() {
   const [panelContent, setPanelContent] = useState<ReactNode>(null);
   const [showAuth, setShowAuth] = useState(false);
 
-  const { user, syncStatus } = useAuth();
+  const { user, syncStatus, lastSyncedAt } = useAuth();
   const t = useT(settings.language);
 
   const lang = settings.language;
@@ -154,7 +150,7 @@ function AppContent() {
               <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
                 {user ? user.email : 'Offline-first'}
               </p>
-              {user && <SyncDot status={syncStatus} />}
+              {user && <SyncDot status={syncStatus} lastSyncedAt={lastSyncedAt} />}
             </div>
           </div>
           <SidebarNav active={activeTab} onSelect={setActiveTab} lang={lang} />

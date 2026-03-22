@@ -4,19 +4,20 @@ import {
   useState,
   useEffect,
   useCallback,
-  useRef,
   type ReactNode,
 } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
-import { syncWithSupabase, overwriteLocalWithSupabase, type SyncStatus } from '../sync';
+import { pushToSupabase, overwriteLocalWithSupabase, type SyncStatus } from '../sync';
+
+const LAST_SYNCED_KEY = 'lastSyncedAt';
 
 interface AuthContextValue {
   user: User | null;
   authLoading: boolean;
   syncStatus: SyncStatus;
-  triggerSync: () => void;
-  syncNow: () => Promise<void>;
+  lastSyncedAt: number | null;
+  pushToCloud: () => Promise<void>;
   pullFromCloud: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
@@ -29,41 +30,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
-  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(() => {
+    const stored = localStorage.getItem(LAST_SYNCED_KEY);
+    return stored ? Number(stored) : null;
+  });
 
-  // Pull+merge then push — used for all sync operations
-  const doSync = useCallback(async (userId: string) => {
-    if (!navigator.onLine) {
-      setSyncStatus('offline');
-      return;
-    }
+  const recordSync = useCallback(() => {
+    const ts = Date.now();
+    localStorage.setItem(LAST_SYNCED_KEY, String(ts));
+    setLastSyncedAt(ts);
+    setSyncStatus('synced');
+  }, []);
+
+  // Manual push: upload all local data to Supabase, overwriting cloud copy
+  const pushToCloud = useCallback(async () => {
+    const { data: { user: u } } = await supabase.auth.getUser();
+    if (!u) return;
+    if (!navigator.onLine) { setSyncStatus('offline'); return; }
     setSyncStatus('syncing');
     try {
-      await syncWithSupabase(userId);
-      setSyncStatus('synced');
+      await pushToSupabase(u.id);
+      recordSync();
     } catch {
       setSyncStatus('error');
     }
-  }, []);
+  }, [recordSync]);
 
-  // Debounced trigger: for background auto-sync
-  const triggerSync = useCallback(() => {
-    setUser(prev => {
-      if (!prev) return prev;
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-      debounceTimer.current = setTimeout(() => doSync(prev.id), 2000);
-      return prev;
-    });
-  }, [doSync]);
-
-  // Immediate sync (for "Sync now" button)
-  const syncNow = useCallback(async () => {
-    const { data: { user: u } } = await supabase.auth.getUser();
-    if (!u) return;
-    await doSync(u.id);
-  }, [doSync]);
-
-  // Force overwrite local from cloud (for "Pull from cloud" button)
+  // Manual pull: download all cloud data to local, overwriting local copy
   const pullFromCloud = useCallback(async () => {
     const { data: { user: u } } = await supabase.auth.getUser();
     if (!u) return;
@@ -71,24 +64,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSyncStatus('syncing');
     try {
       await overwriteLocalWithSupabase(u.id);
-      setSyncStatus('synced');
+      recordSync();
     } catch {
       setSyncStatus('error');
     }
-  }, []);
+  }, [recordSync]);
 
   useEffect(() => {
-    // Restore session on mount — always pull+merge on startup
+    // Restore session on mount — no auto-sync, just restore auth state
     supabase.auth.getSession().then(({ data: { session } }) => {
-      const u = session?.user ?? null;
-      setUser(u);
+      setUser(session?.user ?? null);
       setAuthLoading(false);
-      if (u) {
-        setSyncStatus('syncing');
-        syncWithSupabase(u.id)
-          .then(() => setSyncStatus('synced'))
-          .catch(() => setSyncStatus('error'));
-      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -98,45 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Periodic background sync every 60s when logged in and online
-  useEffect(() => {
-    if (!user) return;
-    const interval = setInterval(() => {
-      if (navigator.onLine) doSync(user.id);
-    }, 60_000);
-    return () => clearInterval(interval);
-  }, [user, doSync]);
-
-  // Online/offline events
-  useEffect(() => {
-    const handleOnline = () => {
-      setUser(u => {
-        if (u) doSync(u.id);
-        return u;
-      });
-    };
-    const handleOffline = () => setSyncStatus('offline');
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [doSync]);
-
   const signIn = async (email: string, password: string) => {
     const { error, data } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    if (data.user) {
-      setUser(data.user);
-      setSyncStatus('syncing');
-      try {
-        await syncWithSupabase(data.user.id);
-        setSyncStatus('synced');
-      } catch {
-        setSyncStatus('error');
-      }
-    }
+    if (data.user) setUser(data.user);
   };
 
   const signUp = async (email: string, password: string) => {
@@ -151,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, authLoading, syncStatus, triggerSync, syncNow, pullFromCloud, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, authLoading, syncStatus, lastSyncedAt, pushToCloud, pullFromCloud, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

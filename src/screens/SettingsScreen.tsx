@@ -42,7 +42,8 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props) {
   const lang: Lang = settings.language ?? 'en';
   const t = useT(lang);
-  const { user, syncStatus, syncNow, pullFromCloud, signOut } = useAuth();
+  const { user, syncStatus, lastSyncedAt, pushToCloud, pullFromCloud, signOut } = useAuth();
+  const [pushing, setPushing] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [audioTesting, setAudioTesting] = useState(false);
   const [audioTestResult, setAudioTestResult] = useState('');
@@ -350,53 +351,72 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
           <div className="bg-white dark:bg-gray-800 rounded-xl divide-y divide-gray-100 dark:divide-gray-700">
             {user ? (
               <>
+                {/* Email */}
                 <div className="px-4 py-3">
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">{t.signedInAs}</p>
                   <p className="text-sm font-medium text-gray-900 dark:text-white break-all">{user.email}</p>
                 </div>
-                <div className="px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t.syncSection}</p>
-                    <p className={`text-xs mt-0.5 ${
-                      syncStatus === 'synced'  ? 'text-green-600 dark:text-green-400' :
-                      syncStatus === 'syncing' ? 'text-indigo-500 dark:text-indigo-400' :
-                      syncStatus === 'offline' ? 'text-orange-500' :
-                      syncStatus === 'error'   ? 'text-red-500' :
-                      'text-gray-400'
-                    }`}>
-                      {syncStatus === 'synced'  ? t.syncSynced  :
-                       syncStatus === 'syncing' ? t.syncSyncing :
-                       syncStatus === 'offline' ? t.syncOffline :
-                       syncStatus === 'error'   ? t.syncError   :
-                       t.syncIdle}
-                    </p>
-                  </div>
+
+                {/* Last sync time */}
+                <div className="px-4 py-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">{t.syncSection}</p>
+                  <p className={`text-sm font-medium ${
+                    syncStatus === 'syncing' ? 'text-indigo-500 dark:text-indigo-400' :
+                    syncStatus === 'error'   ? 'text-red-500' :
+                    syncStatus === 'offline' ? 'text-orange-500' :
+                    lastSyncedAt             ? 'text-green-600 dark:text-green-400' :
+                    'text-gray-400'
+                  }`}>
+                    {syncStatus === 'syncing' ? t.syncSyncing :
+                     syncStatus === 'error'   ? t.syncError :
+                     syncStatus === 'offline' ? t.syncOffline :
+                     lastSyncedAt
+                       ? `${t.lastSynced} ${new Date(lastSyncedAt).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' at')}`
+                       : t.neverSynced}
+                  </p>
+                </div>
+
+                {/* Push to cloud */}
+                <div className="px-4 py-3">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-0.5">{t.pushToCloud}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t.pushToCloudHint}</p>
                   <button
-                    onClick={syncNow}
-                    disabled={syncStatus === 'syncing'}
+                    onClick={async () => {
+                      if (!window.confirm(t.syncConfirmPush)) return;
+                      setPushing(true);
+                      await pushToCloud();
+                      setPushing(false);
+                    }}
+                    disabled={pushing || pulling || syncStatus === 'syncing'}
                     className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
                                text-sm rounded-lg disabled:opacity-40 active:scale-95 transition-transform"
                   >
-                    {t.syncNow}
+                    {pushing ? t.syncSyncing : '↑ ' + t.pushToCloud}
                   </button>
                 </div>
+
+                {/* Pull from cloud */}
                 <div className="px-4 py-3">
                   <p className="text-sm font-medium text-gray-900 dark:text-white mb-0.5">{t.pullFromCloud}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t.pullFromCloudHint}</p>
                   <button
-                    onClick={async () => { setPulling(true); await pullFromCloud(); setPulling(false); }}
-                    disabled={pulling || syncStatus === 'syncing'}
+                    onClick={async () => {
+                      if (!window.confirm(t.syncConfirmPull)) return;
+                      setPulling(true);
+                      await pullFromCloud();
+                      setPulling(false);
+                    }}
+                    disabled={pushing || pulling || syncStatus === 'syncing'}
                     className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
                                text-sm rounded-lg disabled:opacity-40 active:scale-95 transition-transform"
                   >
-                    {pulling ? '⟳' : '↓ ' + t.pullFromCloud}
+                    {pulling ? t.syncSyncing : '↓ ' + t.pullFromCloud}
                   </button>
                 </div>
+
+                {/* Sign out */}
                 <div className="px-4 py-3">
-                  <button
-                    onClick={signOut}
-                    className="text-sm text-red-600 dark:text-red-400 font-medium"
-                  >
+                  <button onClick={signOut} className="text-sm text-red-600 dark:text-red-400 font-medium">
                     {t.signOut}
                   </button>
                 </div>
