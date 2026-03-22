@@ -5,6 +5,7 @@ export interface WordList {
   name: string;
   description?: string;
   createdAt: number;
+  syncId?: string;
 }
 
 export interface Word {
@@ -16,6 +17,7 @@ export interface Word {
   lastReviewed?: number;
   reviewCount: number;
   notes?: string;
+  syncId?: string;
 }
 
 /** Junction table: which word belongs to which list */
@@ -23,6 +25,7 @@ export interface WordRef {
   id?: number;
   listId: number;
   wordId: number;
+  syncId?: string;
 }
 
 export class ChineseDB extends Dexie {
@@ -53,6 +56,13 @@ export class ChineseDB extends Dexie {
       if (refs.length > 0) {
         await tx.table('wordRefs').bulkAdd(refs);
       }
+    });
+
+    // V3: add syncId index for Supabase sync
+    this.version(3).stores({
+      wordLists: '++id, name, createdAt, syncId',
+      words: '++id, confidence, lastReviewed, syncId',
+      wordRefs: '++id, listId, wordId, [listId+wordId], syncId',
     });
   }
 }

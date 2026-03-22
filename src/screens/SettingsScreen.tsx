@@ -3,11 +3,13 @@ import { db, getWordsForList } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { playGoogleTTS } from '../utils/googleTTS';
 import { useT } from '../i18n';
+import { useAuth } from '../contexts/AuthContext';
 import type { AppSettings, AISettings, Lang } from '../types';
 
 interface Props {
   settings: AppSettings;
   onUpdateSettings: (updates: Partial<AppSettings>) => void;
+  onShowAuth: () => void;
 }
 
 interface SingleListJSON {
@@ -37,9 +39,10 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-export function SettingsScreen({ settings, onUpdateSettings }: Props) {
+export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props) {
   const lang: Lang = settings.language ?? 'en';
   const t = useT(lang);
+  const { user, syncStatus, syncNow, signOut } = useAuth();
   const [audioTesting, setAudioTesting] = useState(false);
   const [audioTestResult, setAudioTestResult] = useState('');
   const [importStatus, setImportStatus] = useState('');
@@ -335,6 +338,68 @@ export function SettingsScreen({ settings, onUpdateSettings }: Props) {
                 {t.exportAll}
               </button>
             </div>
+          </div>
+        </section>
+
+        {/* Account */}
+        <section className="px-4 xl:px-0 xl:col-span-2">
+          <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+            {t.accountSection}
+          </h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl divide-y divide-gray-100 dark:divide-gray-700">
+            {user ? (
+              <>
+                <div className="px-4 py-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">{t.signedInAs}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white break-all">{user.email}</p>
+                </div>
+                <div className="px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t.syncSection}</p>
+                    <p className={`text-xs mt-0.5 ${
+                      syncStatus === 'synced'  ? 'text-green-600 dark:text-green-400' :
+                      syncStatus === 'syncing' ? 'text-indigo-500 dark:text-indigo-400' :
+                      syncStatus === 'offline' ? 'text-orange-500' :
+                      syncStatus === 'error'   ? 'text-red-500' :
+                      'text-gray-400'
+                    }`}>
+                      {syncStatus === 'synced'  ? t.syncSynced  :
+                       syncStatus === 'syncing' ? t.syncSyncing :
+                       syncStatus === 'offline' ? t.syncOffline :
+                       syncStatus === 'error'   ? t.syncError   :
+                       t.syncIdle}
+                    </p>
+                  </div>
+                  <button
+                    onClick={syncNow}
+                    disabled={syncStatus === 'syncing'}
+                    className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
+                               text-sm rounded-lg disabled:opacity-40 active:scale-95 transition-transform"
+                  >
+                    {t.syncNow}
+                  </button>
+                </div>
+                <div className="px-4 py-3">
+                  <button
+                    onClick={signOut}
+                    className="text-sm text-red-600 dark:text-red-400 font-medium"
+                  >
+                    {t.signOut}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="px-4 py-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{t.signInToSync}</p>
+                <button
+                  onClick={onShowAuth}
+                  className="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium
+                             active:scale-95 transition-transform"
+                >
+                  {t.signInOrSignUp}
+                </button>
+              </div>
+            )}
           </div>
         </section>
 

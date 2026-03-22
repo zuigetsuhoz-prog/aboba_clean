@@ -4,10 +4,13 @@ import { ListsScreen } from './screens/ListsScreen';
 import { StudyScreen } from './screens/StudyScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SearchScreen } from './screens/SearchScreen';
+import { AuthScreen } from './screens/AuthScreen';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useSettings } from './hooks/useSettings';
 import { PanelCtx } from './contexts/PanelContext';
 import { useT } from './i18n';
 import type { Tab } from './types';
+import type { SyncStatus } from './sync';
 
 function SidebarNav({
   active,
@@ -56,10 +59,30 @@ function PanelPlaceholder() {
   );
 }
 
-export default function App() {
+function SyncDot({ status }: { status: SyncStatus }) {
+  const colorClass =
+    status === 'synced'  ? 'text-green-500' :
+    status === 'syncing' ? 'text-indigo-400 animate-pulse' :
+    status === 'offline' ? 'text-orange-400' :
+    status === 'error'   ? 'text-red-400' :
+    'text-gray-400';
+  const label =
+    status === 'synced'  ? '✓' :
+    status === 'syncing' ? '⟳' :
+    status === 'offline' ? '⊘' :
+    status === 'error'   ? '⚠' : '';
+  if (!label) return null;
+  return <span className={`text-xs font-mono ${colorClass}`}>{label}</span>;
+}
+
+function AppContent() {
   const [activeTab, setActiveTab] = useState<Tab>('lists');
   const { settings, updateSettings } = useSettings();
   const [panelContent, setPanelContent] = useState<ReactNode>(null);
+  const [showAuth, setShowAuth] = useState(false);
+
+  const { user, syncStatus } = useAuth();
+  const t = useT(settings.language);
 
   const lang = settings.language;
   const setPanel = useCallback((node: ReactNode) => setPanelContent(node), []);
@@ -79,34 +102,46 @@ export default function App() {
         <SearchScreen lang={lang} aiSettings={settings.ai} onOpenSettings={handleOpenSettings} />
       )}
       {activeTab === 'settings' && (
-        <SettingsScreen settings={settings} onUpdateSettings={updateSettings} />
+        <SettingsScreen settings={settings} onUpdateSettings={updateSettings} onShowAuth={() => setShowAuth(true)} />
       )}
     </>
   );
 
+  // Banner shown at top when user is not logged in
+  const banner = !user ? (
+    <div className="bg-indigo-50 dark:bg-indigo-900/30 border-b border-indigo-200 dark:border-indigo-800
+                    px-4 py-2 flex items-center justify-between shrink-0">
+      <p className="text-xs text-indigo-700 dark:text-indigo-300">{t.signInBanner}</p>
+      <button
+        onClick={() => setShowAuth(true)}
+        className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 px-2 py-1
+                   rounded hover:bg-indigo-100 dark:hover:bg-indigo-800 transition-colors"
+      >
+        {t.signIn}
+      </button>
+    </div>
+  ) : null;
+
   return (
-    // Outer shell — dark-mode class carrier only; sizing comes from #root
     <div
       className={settings.darkMode ? 'dark' : ''}
       style={{ width: '100vw', height: '100dvh', overflow: 'hidden', background: bg }}
     >
-      {/* ── MOBILE layout (< 1024px) ──────────────────────────────────────
-           Tailwind controls display. NO inline display style here so that
-           lg:hidden can correctly set display:none on desktop.              */}
+      {/* Auth modal */}
+      {showAuth && <AuthScreen onClose={() => setShowAuth(false)} lang={lang} />}
+
+      {/* ── MOBILE layout (< 1024px) ──────────────────────────────────────── */}
       <div className="flex flex-col h-dvh overflow-hidden lg:hidden">
-        {/* Scrollable content */}
+        {banner}
         <PanelCtx.Provider value={setPanel}>
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
             {screen}
           </div>
         </PanelCtx.Provider>
-        {/* Fixed-height bottom tab bar */}
         <TabBar active={activeTab} onSelect={setActiveTab} lang={lang} />
       </div>
 
-      {/* ── DESKTOP layout (>= 1024px) ─────────────────────────────────────
-           Tailwind controls display. NO inline display style here so that
-           hidden can correctly set display:none on mobile.                  */}
+      {/* ── DESKTOP layout (>= 1024px) ────────────────────────────────────── */}
       <div className="hidden lg:flex h-dvh w-full overflow-hidden">
         {/* Left sidebar */}
         <aside
@@ -115,13 +150,19 @@ export default function App() {
         >
           <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-800 shrink-0">
             <p className="text-base font-bold text-gray-900 dark:text-white">BALBES files</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Offline-first</p>
+            <div className="flex items-center justify-between mt-0.5">
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                {user ? user.email : 'Offline-first'}
+              </p>
+              {user && <SyncDot status={syncStatus} />}
+            </div>
           </div>
           <SidebarNav active={activeTab} onSelect={setActiveTab} lang={lang} />
         </aside>
 
         {/* Center column */}
         <div className="flex flex-col overflow-hidden" style={{ flex: 1, minHeight: 0 }}>
+          {banner}
           <PanelCtx.Provider value={setPanel}>
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
               {screen}
@@ -138,5 +179,13 @@ export default function App() {
         </aside>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

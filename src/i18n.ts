@@ -133,6 +133,22 @@ const en = {
   noResults: 'No results found',
   searchHint: 'Type to search across all lists',
   inLists: 'In:',
+
+  // Account / Sync
+  accountSection: 'Account',
+  signIn: 'Sign In',
+  signInOrSignUp: 'Sign In / Sign Up',
+  signOut: 'Sign out',
+  signedInAs: 'Signed in as',
+  syncSection: 'Sync',
+  syncSynced: '✓ Synced',
+  syncSyncing: '⟳ Syncing…',
+  syncOffline: 'Offline',
+  syncError: '⚠ Sync error',
+  syncIdle: 'Idle',
+  syncNow: 'Sync now',
+  signInBanner: 'Sign in to sync across devices',
+  signInToSync: 'Sign in to sync data across devices',
 };
 
 const ru: Translations = {
@@ -258,6 +274,22 @@ const ru: Translations = {
   noResults: 'Ничего не найдено',
   searchHint: 'Введите текст для поиска по всем спискам',
   inLists: 'В списках:',
+
+  // Account / Sync
+  accountSection: 'Аккаунт',
+  signIn: 'Войти',
+  signInOrSignUp: 'Войти / Зарегистрироваться',
+  signOut: 'Выйти',
+  signedInAs: 'Вы вошли как',
+  syncSection: 'Синхронизация',
+  syncSynced: '✓ Синхронизировано',
+  syncSyncing: '⟳ Синхронизация…',
+  syncOffline: 'Офлайн',
+  syncError: '⚠ Ошибка синхронизации',
+  syncIdle: 'Ожидание',
+  syncNow: 'Синхр. сейчас',
+  signInBanner: 'Войдите для синхронизации между устройствами',
+  signInToSync: 'Войдите для синхронизации между устройствами',
 };
 
 const translations: Record<Lang, Translations> = { en, ru };
