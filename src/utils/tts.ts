@@ -3,12 +3,20 @@
  * Plays Chinese text via ResponsiveVoice, with Web Speech API fallback.
  */
 
-export function playTTS(hanzi: string): void {
+export function cancelTTS(): void {
   if (window.responsiveVoice) {
-    window.responsiveVoice.speak(hanzi, "Chinese Female");
+    window.responsiveVoice.cancel();
+  } else {
+    window.speechSynthesis.cancel();
+  }
+}
+
+export function playTTS(text: string): void {
+  if (window.responsiveVoice) {
+    window.responsiveVoice.speak(text, "Chinese Female");
   } else {
     // fallback to Web Speech API
-    const utter = new SpeechSynthesisUtterance(hanzi);
+    const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'zh-CN';
     window.speechSynthesis.speak(utter);
   }

@@ -74,6 +74,7 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
   const [pinyinFilter, setPinyinFilter] = useState('');
   const [maxConfidence, setMaxConfidence] = useState('');
   const [shuffle, setShuffle] = useState(false);
+  const [autoPlay, setAutoPlay] = useState(false);
   const [startFace, setStartFace] = useState<CardSide>(0);
   const [session, setSession] = useState<Word[] | null>(null);
 
@@ -224,6 +225,7 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
         aiSettings={aiSettings}
         onOpenSettings={onOpenSettings}
         initialSide={startFace}
+        autoPlay={autoPlay}
       />
     );
   }
@@ -372,6 +374,12 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
                 {t.randomShuffle}
               </label>
               <Toggle on={shuffle} onToggle={() => setShuffle(s => !s)} />
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+                {t.autoPlayAudio}
+              </label>
+              <Toggle on={autoPlay} onToggle={() => setAutoPlay(s => !s)} />
             </div>
             <div className="flex items-start gap-3">
               <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0 pt-1">

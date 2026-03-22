@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { db, type Word, calcConfidence, type RatingKey } from '../db';
 import { AIModal } from '../components/AIModal';
 import { Modal } from '../components/Modal';
-import { playTTS } from '../utils/tts';
+import { playTTS, cancelTTS } from '../utils/tts';
 import { useT } from '../i18n';
 import { usePanelContent } from '../contexts/PanelContext';
 import type { AISettings, CardSide, Lang } from '../types';
@@ -14,6 +14,7 @@ interface Props {
   aiSettings: AISettings;
   onOpenSettings: () => void;
   initialSide?: CardSide;
+  autoPlay?: boolean;
 }
 
 interface CardHistoryEntry {
@@ -34,7 +35,7 @@ const RATINGS: { key: RatingKey; labelKey: 'ratePerfect' | 'rateTone' | 'rateVag
   { key: 'noidea',  labelKey: 'rateNoIdea',  color: 'bg-red-500' },
 ];
 
-export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings, onOpenSettings, initialSide = 0 }: Props) {
+export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings, onOpenSettings, initialSide = 0, autoPlay = false }: Props) {
   const t = useT(lang);
   const setPanel = usePanelContent();
 
@@ -59,7 +60,6 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
 
   // ── audio state ───────────────────────────────────────────────────────────
   const [audioPlaying, setAudioPlaying] = useState(false);
-  const [audioError, setAudioError] = useState('');
 
   const currentWord = words[currentIndex];
 
@@ -87,13 +87,23 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   }, [changeSide]);
 
   // ── audio playback ────────────────────────────────────────────────────────
-  const speakCurrent = () => {
-    if (audioPlaying || !currentWord) return;
+  const speakCurrent = useCallback(() => {
+    if (!currentWord) return;
+    cancelTTS();
     setAudioPlaying(true);
-    setAudioError('');
     playTTS(currentWord.hanzi);
     setAudioPlaying(false);
-  };
+  }, [currentWord]);
+
+  // Auto-play: fires when card or side changes; waits for animation to settle
+  useEffect(() => {
+    if (!autoPlay || !currentWord) return;
+    const timer = window.setTimeout(() => {
+      cancelTTS();
+      playTTS(getContent(side, currentWord));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [autoPlay, currentIndex, side, currentWord, getContent]);
 
   // ── notes modal ───────────────────────────────────────────────────────────
   const openNote = () => {
@@ -381,15 +391,6 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
           </>
         )}
       </div>
-
-      {/* Audio error toast */}
-      {audioError && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2
-                        bg-gray-800 text-white text-xs px-4 py-2 rounded-full
-                        shadow-lg fade-in pointer-events-none z-20">
-          {audioError}
-        </div>
-      )}
 
       {/* Note modal */}
       {showNote && (
