@@ -7,7 +7,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { ConfidenceBar } from '../components/ConfidenceBar';
 import { Modal } from '../components/Modal';
 import { AIModal } from '../components/AIModal';
-import { playGoogleTTS } from '../utils/googleTTS';
+import { playTTS } from '../utils/tts';
 import { useT } from '../i18n';
 import type { AISettings, Lang, SortOption } from '../types';
 
@@ -314,9 +314,9 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
                       </button>
                       <button
                         disabled={playingId === word.id}
-                        onClick={async () => {
+                        onClick={() => {
                           setPlayingId(word.id!);
-                          await playGoogleTTS(word.hanzi);
+                          playTTS(word.hanzi);
                           setPlayingId(null);
                         }}
                         className={`w-8 h-8 flex items-center justify-center rounded-full

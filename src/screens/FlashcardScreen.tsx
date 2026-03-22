@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { db, type Word, calcConfidence, type RatingKey } from '../db';
 import { AIModal } from '../components/AIModal';
 import { Modal } from '../components/Modal';
-import { playGoogleTTS } from '../utils/googleTTS';
+import { playTTS } from '../utils/tts';
 import { useT } from '../i18n';
 import { usePanelContent } from '../contexts/PanelContext';
 import type { AISettings, CardSide, Lang } from '../types';
@@ -87,16 +87,12 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   }, [changeSide]);
 
   // ── audio playback ────────────────────────────────────────────────────────
-  const speakCurrent = async () => {
+  const speakCurrent = () => {
     if (audioPlaying || !currentWord) return;
     setAudioPlaying(true);
     setAudioError('');
-    const result = await playGoogleTTS(currentWord.hanzi);
+    playTTS(currentWord.hanzi);
     setAudioPlaying(false);
-    if (result === 'none') {
-      setAudioError(t.audioUnavailable);
-      setTimeout(() => setAudioError(''), 3000);
-    }
   };
 
   // ── notes modal ───────────────────────────────────────────────────────────

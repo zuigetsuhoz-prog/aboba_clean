@@ -3,7 +3,7 @@ import { db, type Word, type WordList } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ConfidenceBar } from '../components/ConfidenceBar';
 import { AIModal } from '../components/AIModal';
-import { playGoogleTTS } from '../utils/googleTTS';
+import { playTTS } from '../utils/tts';
 import { useT } from '../i18n';
 import type { Lang } from '../types';
 import type { AISettings } from '../types';
@@ -122,9 +122,9 @@ export function SearchScreen({ lang, aiSettings, onOpenSettings }: Props) {
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       disabled={playingId === word.id}
-                      onClick={async () => {
+                      onClick={() => {
                         setPlayingId(word.id!);
-                        await playGoogleTTS(word.hanzi);
+                        playTTS(word.hanzi);
                         setPlayingId(null);
                       }}
                       className={`w-8 h-8 flex items-center justify-center rounded-full

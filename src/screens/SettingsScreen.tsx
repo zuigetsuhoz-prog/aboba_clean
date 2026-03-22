@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { db, getWordsForList } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { playGoogleTTS } from '../utils/googleTTS';
+import { playTTS } from '../utils/tts';
 import { useT } from '../i18n';
 import { useAuth } from '../contexts/AuthContext';
 import type { AppSettings, AISettings, Lang } from '../types';
@@ -201,12 +201,12 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
               </div>
               <button
                 disabled={audioTesting}
-                onClick={async () => {
+                onClick={() => {
                   setAudioTesting(true);
                   setAudioTestResult('');
-                  const result = await playGoogleTTS('你好');
+                  playTTS('你好');
                   setAudioTesting(false);
-                  setAudioTestResult(result === 'none' ? 'Audio unavailable' : 'ok');
+                  setAudioTestResult('ok');
                   setTimeout(() => setAudioTestResult(''), 4000);
                 }}
                 className="px-4 py-2 bg-indigo-600 disabled:opacity-50 text-white rounded-lg
