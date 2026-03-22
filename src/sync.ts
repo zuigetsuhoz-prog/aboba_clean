@@ -195,7 +195,10 @@ export async function pushToSupabase(userId: string): Promise<void> {
         created_at: new Date(l.createdAt).toISOString(),
       })),
     );
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase sync error (word_lists):', error.message, error.details, error.hint);
+      throw error;
+    }
   }
 
   if (words.length > 0) {
@@ -203,7 +206,6 @@ export async function pushToSupabase(userId: string): Promise<void> {
       words.map(w => ({
         id: w.syncId,
         user_id: userId,
-        list_id: null,
         hanzi: w.hanzi,
         pinyin: w.pinyin,
         translation: w.translation,
@@ -213,7 +215,10 @@ export async function pushToSupabase(userId: string): Promise<void> {
         last_reviewed: w.lastReviewed ?? null,
       })),
     );
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase sync error (words):', error.message, error.details, error.hint);
+      throw error;
+    }
   }
 
   if (refs.length > 0) {
@@ -229,7 +234,10 @@ export async function pushToSupabase(userId: string): Promise<void> {
       );
     if (refsData.length > 0) {
       const { error } = await supabase.from('word_refs').insert(refsData);
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase sync error (word_refs):', error.message, error.details, error.hint);
+        throw error;
+      }
     }
   }
 }
