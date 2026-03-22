@@ -408,6 +408,9 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
           <div className="bg-white dark:bg-gray-800 rounded-xl px-4 py-3 text-center">
             <p className="text-xl font-semibold text-gray-900 dark:text-white mb-1">BALBES files</p>
             <p className="text-xs text-gray-400 dark:text-gray-500">{t.about}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              Version: {__APP_VERSION__} ({__GIT_HASH__})
+            </p>
           </div>
         </section>
         </div>{/* end xl grid */}
