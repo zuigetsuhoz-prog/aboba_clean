@@ -147,6 +147,8 @@ const en = {
   syncError: '⚠ Sync error',
   syncIdle: 'Idle',
   syncNow: 'Sync now',
+  pullFromCloud: 'Pull from cloud',
+  pullFromCloudHint: 'Overwrite local data with cloud copy',
   signInBanner: 'Sign in to sync across devices',
   signInToSync: 'Sign in to sync data across devices',
 };
@@ -288,6 +290,8 @@ const ru: Translations = {
   syncError: '⚠ Ошибка синхронизации',
   syncIdle: 'Ожидание',
   syncNow: 'Синхр. сейчас',
+  pullFromCloud: 'Загрузить с облака',
+  pullFromCloudHint: 'Заменить локальные данные облачной копией',
   signInBanner: 'Войдите для синхронизации между устройствами',
   signInToSync: 'Войдите для синхронизации между устройствами',
 };

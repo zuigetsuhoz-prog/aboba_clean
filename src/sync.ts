@@ -4,10 +4,98 @@ import { db } from './db';
 export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'offline' | 'error';
 
 /**
- * Pull all user data from Supabase and replace local IndexedDB.
- * Used when logging in on a new device (local DB is empty).
+ * Fetch all user data from Supabase and UPSERT into local IndexedDB.
+ * Existing local records (matched by syncId) are updated; new ones are inserted.
+ * Local-only records (no syncId match on server) are left untouched.
  */
-export async function pullFromSupabase(userId: string): Promise<void> {
+export async function mergeFromSupabase(userId: string): Promise<void> {
+  const [{ data: sbLists, error: e1 }, { data: sbWords, error: e2 }, { data: sbRefs, error: e3 }] =
+    await Promise.all([
+      supabase.from('word_lists').select('*').eq('user_id', userId),
+      supabase.from('words').select('*').eq('user_id', userId),
+      supabase.from('word_refs').select('*').eq('user_id', userId),
+    ]);
+
+  if (e1 || e2 || e3) throw new Error(e1?.message ?? e2?.message ?? e3?.message ?? 'Fetch failed');
+  if (!sbLists || !sbWords || !sbRefs) throw new Error('No data returned');
+
+  await db.transaction('rw', [db.wordLists, db.words, db.wordRefs], async () => {
+    // ── Upsert word lists ──────────────────────────────────────────────────
+    const listIdMap = new Map<string, number>(); // server uuid → local id
+    for (const l of sbLists) {
+      const existing = await db.wordLists.where('syncId').equals(l.id).first();
+      if (existing) {
+        await db.wordLists.update(existing.id!, {
+          name: l.name,
+          description: l.description ?? undefined,
+          createdAt: new Date(l.created_at).getTime(),
+        });
+        listIdMap.set(l.id, existing.id!);
+      } else {
+        const localId = (await db.wordLists.add({
+          name: l.name,
+          description: l.description ?? undefined,
+          createdAt: new Date(l.created_at).getTime(),
+          syncId: l.id,
+        })) as number;
+        listIdMap.set(l.id, localId);
+      }
+    }
+
+    // ── Upsert words ───────────────────────────────────────────────────────
+    const wordIdMap = new Map<string, number>(); // server uuid → local id
+    for (const w of sbWords) {
+      const existing = await db.words.where('syncId').equals(w.id).first();
+      if (existing) {
+        await db.words.update(existing.id!, {
+          hanzi: w.hanzi,
+          pinyin: w.pinyin,
+          translation: w.translation,
+          confidence: w.confidence,
+          reviewCount: w.review_count,
+          notes: w.notes ?? undefined,
+          lastReviewed: w.last_reviewed ?? undefined,
+        });
+        wordIdMap.set(w.id, existing.id!);
+      } else {
+        const localId = (await db.words.add({
+          hanzi: w.hanzi,
+          pinyin: w.pinyin,
+          translation: w.translation,
+          confidence: w.confidence,
+          reviewCount: w.review_count,
+          notes: w.notes ?? undefined,
+          lastReviewed: w.last_reviewed ?? undefined,
+          syncId: w.id,
+        })) as number;
+        wordIdMap.set(w.id, localId);
+      }
+    }
+
+    // ── Upsert word refs ───────────────────────────────────────────────────
+    for (const r of sbRefs) {
+      const existing = r.id ? await db.wordRefs.where('syncId').equals(r.id).first() : undefined;
+      if (!existing) {
+        const localListId = listIdMap.get(r.list_id);
+        const localWordId = wordIdMap.get(r.word_id);
+        if (localListId !== undefined && localWordId !== undefined) {
+          const byIds = await db.wordRefs.where({ listId: localListId, wordId: localWordId }).first();
+          if (!byIds) {
+            await db.wordRefs.add({ listId: localListId, wordId: localWordId, syncId: r.id });
+          } else if (!byIds.syncId) {
+            await db.wordRefs.update(byIds.id!, { syncId: r.id });
+          }
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Pull all user data from Supabase and OVERWRITE local IndexedDB completely.
+ * Used for the "Pull from cloud" force-download action.
+ */
+export async function overwriteLocalWithSupabase(userId: string): Promise<void> {
   const [{ data: sbLists, error: e1 }, { data: sbWords, error: e2 }, { data: sbRefs, error: e3 }] =
     await Promise.all([
       supabase.from('word_lists').select('*').eq('user_id', userId),
@@ -147,14 +235,11 @@ export async function pushToSupabase(userId: string): Promise<void> {
 }
 
 /**
- * Smart sync: if local DB is empty, pull from Supabase.
- * Otherwise push local data up.
+ * Full sync: pull from Supabase first (merge into local), then push local back up.
+ * Always pulls regardless of whether local DB is empty.
+ * Used on login, session restore, "Sync now", and background sync.
  */
 export async function syncWithSupabase(userId: string): Promise<void> {
-  const localCount = await db.wordLists.count();
-  if (localCount === 0) {
-    await pullFromSupabase(userId);
-  } else {
-    await pushToSupabase(userId);
-  }
+  await mergeFromSupabase(userId);
+  await pushToSupabase(userId);
 }

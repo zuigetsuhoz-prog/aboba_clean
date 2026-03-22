@@ -9,7 +9,7 @@ import {
 } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
-import { syncWithSupabase, pushToSupabase, type SyncStatus } from '../sync';
+import { syncWithSupabase, overwriteLocalWithSupabase, type SyncStatus } from '../sync';
 
 interface AuthContextValue {
   user: User | null;
@@ -17,6 +17,7 @@ interface AuthContextValue {
   syncStatus: SyncStatus;
   triggerSync: () => void;
   syncNow: () => Promise<void>;
+  pullFromCloud: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -30,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Pull+merge then push — used for all sync operations
   const doSync = useCallback(async (userId: string) => {
     if (!navigator.onLine) {
       setSyncStatus('offline');
@@ -37,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setSyncStatus('syncing');
     try {
-      await pushToSupabase(userId);
+      await syncWithSupabase(userId);
       setSyncStatus('synced');
     } catch {
       setSyncStatus('error');
@@ -61,8 +63,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await doSync(u.id);
   }, [doSync]);
 
+  // Force overwrite local from cloud (for "Pull from cloud" button)
+  const pullFromCloud = useCallback(async () => {
+    const { data: { user: u } } = await supabase.auth.getUser();
+    if (!u) return;
+    if (!navigator.onLine) { setSyncStatus('offline'); return; }
+    setSyncStatus('syncing');
+    try {
+      await overwriteLocalWithSupabase(u.id);
+      setSyncStatus('synced');
+    } catch {
+      setSyncStatus('error');
+    }
+  }, []);
+
   useEffect(() => {
-    // Restore session on mount
+    // Restore session on mount — always pull+merge on startup
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null;
       setUser(u);
@@ -135,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, authLoading, syncStatus, triggerSync, syncNow, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, authLoading, syncStatus, triggerSync, syncNow, pullFromCloud, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

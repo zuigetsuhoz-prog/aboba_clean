@@ -42,7 +42,8 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props) {
   const lang: Lang = settings.language ?? 'en';
   const t = useT(lang);
-  const { user, syncStatus, syncNow, signOut } = useAuth();
+  const { user, syncStatus, syncNow, pullFromCloud, signOut } = useAuth();
+  const [pulling, setPulling] = useState(false);
   const [audioTesting, setAudioTesting] = useState(false);
   const [audioTestResult, setAudioTestResult] = useState('');
   const [importStatus, setImportStatus] = useState('');
@@ -377,6 +378,18 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
                                text-sm rounded-lg disabled:opacity-40 active:scale-95 transition-transform"
                   >
                     {t.syncNow}
+                  </button>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-0.5">{t.pullFromCloud}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t.pullFromCloudHint}</p>
+                  <button
+                    onClick={async () => { setPulling(true); await pullFromCloud(); setPulling(false); }}
+                    disabled={pulling || syncStatus === 'syncing'}
+                    className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
+                               text-sm rounded-lg disabled:opacity-40 active:scale-95 transition-transform"
+                  >
+                    {pulling ? '⟳' : '↓ ' + t.pullFromCloud}
                   </button>
                 </div>
                 <div className="px-4 py-3">
