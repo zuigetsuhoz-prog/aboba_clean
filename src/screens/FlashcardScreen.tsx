@@ -98,12 +98,9 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
   // Auto-play: fires when card or side changes; waits for animation to settle
   useEffect(() => {
     if (!autoPlay || !currentWord) return;
-    const timer = window.setTimeout(() => {
-      cancelTTS();
-      playTTS(getContent(side, currentWord));
-    }, 250);
+    const timer = window.setTimeout(speakCurrent, 250);
     return () => clearTimeout(timer);
-  }, [autoPlay, currentIndex, side, currentWord, getContent]);
+  }, [autoPlay, currentIndex, side, speakCurrent]);
 
   // ── notes modal ───────────────────────────────────────────────────────────
   const openNote = () => {
