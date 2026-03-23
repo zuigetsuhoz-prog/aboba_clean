@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { db, type Word, calcConfidence, type RatingKey } from '../db';
 import { AIModal } from '../components/AIModal';
 import { Modal } from '../components/Modal';
@@ -28,11 +28,11 @@ interface CardHistoryEntry {
 
 const SIDE_LABELS: Record<CardSide, string> = { 0: '汉字', 1: 'Pīnyīn', 2: 'Translation' };
 
-const RATINGS: { key: RatingKey; labelKey: 'ratePerfect' | 'rateTone' | 'rateVague' | 'rateNoIdea'; color: string }[] = [
-  { key: 'perfect', labelKey: 'ratePerfect', color: 'bg-green-500' },
-  { key: 'tone',    labelKey: 'rateTone',    color: 'bg-yellow-500' },
-  { key: 'vague',   labelKey: 'rateVague',   color: 'bg-orange-500' },
-  { key: 'noidea',  labelKey: 'rateNoIdea',  color: 'bg-red-500' },
+const RATINGS: { key: RatingKey; labelKey: 'ratePerfect' | 'rateTone' | 'rateVague' | 'rateNoIdea'; style: React.CSSProperties }[] = [
+  { key: 'perfect', labelKey: 'ratePerfect', style: { border: '1px solid rgba(134,239,172,0.3)', background: 'rgba(134,239,172,0.08)', color: '#86efac' } },
+  { key: 'tone',    labelKey: 'rateTone',    style: { border: '1px solid rgba(251,191,36,0.3)',  background: 'rgba(251,191,36,0.08)',  color: '#fbbf24' } },
+  { key: 'vague',   labelKey: 'rateVague',   style: { border: '1px solid rgba(251,146,60,0.3)',  background: 'rgba(251,146,60,0.08)',  color: '#fb923c' } },
+  { key: 'noidea',  labelKey: 'rateNoIdea',  style: { border: '1px solid rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.08)', color: '#f87171' } },
 ];
 
 export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings, onOpenSettings, initialSide = 0, autoPlay = false }: Props) {
@@ -377,9 +377,8 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
                 <button
                   key={r.key}
                   onClick={() => applyRating(r.key, t[r.labelKey])}
-                  className={`${r.color} text-white rounded-xl text-sm font-medium
-                               active:scale-95 transition-transform`}
-                  style={{ padding: '10px 8px' }}
+                  className="rounded-xl text-sm font-medium active:scale-95 transition-transform"
+                  style={{ padding: '10px 8px', ...r.style }}
                 >
                   {t[r.labelKey]}
                 </button>
