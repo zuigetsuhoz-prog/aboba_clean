@@ -78,10 +78,12 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
       const importLists = toLists(raw);
       let totalWords = 0;
 
+      const importTimestamp = Date.now();
       for (const item of importLists) {
         if (!item.listName || !Array.isArray(item.words)) continue;
-        const listId = (await db.wordLists.add({ name: item.listName, createdAt: Date.now() })) as number;
-        for (const w of item.words) {
+        const listId = (await db.wordLists.add({ name: item.listName, createdAt: importTimestamp })) as number;
+        for (let i = 0; i < item.words.length; i++) {
+          const w = item.words[i];
           const wordId = (await db.words.add({
             hanzi: w.hanzi,
             pinyin: w.pinyin,
@@ -89,6 +91,7 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
             confidence: typeof w.confidence === 'number' ? w.confidence : 50,
             reviewCount: typeof w.reviewCount === 'number' ? w.reviewCount : 0,
             notes: w.notes || undefined,
+            createdAt: importTimestamp + i,
           })) as number;
           await db.wordRefs.add({ listId, wordId });
           totalWords++;

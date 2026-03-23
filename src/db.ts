@@ -19,6 +19,7 @@ export interface Word {
   reviewCount: number;
   notes?: string;
   syncId?: string;
+  createdAt?: number;
 }
 
 /** Junction table: which word belongs to which list */
@@ -89,6 +90,7 @@ export const db = new ChineseDB();
 export async function getWordsForList(listId: number): Promise<Word[]> {
   const refs = await db.wordRefs.where('listId').equals(listId).toArray();
   if (refs.length === 0) return [];
+  refs.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
   const words = await db.words.bulkGet(refs.map(r => r.wordId));
   return words.filter((w): w is Word => w !== undefined);
 }

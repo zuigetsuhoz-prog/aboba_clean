@@ -1,5 +1,5 @@
 import { useState, useDeferredValue, useCallback } from 'react';
-import { db, type Word, type WordList } from '../db';
+import { db, type Word, type WordList, stripTones } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ConfidenceBar } from '../components/ConfidenceBar';
 import { AIModal } from '../components/AIModal';
@@ -36,9 +36,10 @@ export function SearchScreen({ lang, aiSettings, onOpenSettings }: Props) {
     if (!q) return [];
 
     const allWords = await db.words.toArray();
+    const strippedQ = stripTones(q);
     const matched = allWords.filter(w =>
       w.hanzi.includes(q) ||
-      w.pinyin.toLowerCase().includes(q) ||
+      stripTones(w.pinyin).includes(strippedQ) ||
       w.translation.toLowerCase().includes(q),
     );
 
@@ -140,13 +141,6 @@ export function SearchScreen({ lang, aiSettings, onOpenSettings }: Props) {
                         </span>
                       )}
                     </div>
-                    {word.reviewCount > 0 && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">🔁 {word.reviewCount} повторений</p>
-                    )}
-                    {word.notes && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">📝 {word.notes}</p>
-                    )}
-
                     {/* List badges — search-specific */}
                     {lists.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1.5">
