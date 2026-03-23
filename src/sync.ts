@@ -240,9 +240,27 @@ export async function pushToSupabase(
   const wordMap = new Map(words.map(w => [w.id!, w.syncId!]));
 
   // Delete all existing user data in Supabase (words first, then lists, then refs)
-  await supabase.from('words').delete().eq('user_id', userId);
-  await supabase.from('word_lists').delete().eq('user_id', userId);
-  await supabase.from('word_refs').delete().eq('user_id', userId);
+  console.log('Starting delete for user:', userId);
+
+  const { error: delWords } = await supabase.from('words').delete().eq('user_id', userId);
+  if (delWords) {
+    console.error('Delete words failed:', delWords);
+    throw new Error('Delete words failed: ' + delWords.message);
+  }
+
+  const { error: delLists } = await supabase.from('word_lists').delete().eq('user_id', userId);
+  if (delLists) {
+    console.error('Delete lists failed:', delLists);
+    throw new Error('Delete lists failed: ' + delLists.message);
+  }
+
+  const { error: delRefs } = await supabase.from('word_refs').delete().eq('user_id', userId);
+  if (delRefs) {
+    console.error('Delete refs failed:', delRefs);
+    throw new Error('Delete refs failed: ' + delRefs.message);
+  }
+
+  console.log('Delete complete, starting insert');
 
   if (lists.length > 0) {
     await insertInChunks(
