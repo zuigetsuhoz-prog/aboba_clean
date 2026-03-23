@@ -2,88 +2,135 @@ import { supabase } from './supabase';
 import { db } from './db';
 
 export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'offline' | 'error';
+export type SyncProgress = { loaded: number; total: number } | null;
+
+type ProgressFn = (loaded: number, total: number) => void;
+
+const PAGE = 500;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function fetchAllPages<T>(
+  table: string,
+  userId: string,
+  onProgress?: (loaded: number) => void,
+): Promise<T[]> {
+  const all: T[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq('user_id', userId)
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    all.push(...(data as T[]));
+    onProgress?.(all.length);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
+async function insertInChunks<T extends Record<string, unknown>>(
+  table: string,
+  rows: T[],
+  onProgress?: ProgressFn,
+): Promise<void> {
+  for (let i = 0; i < rows.length; i += PAGE) {
+    const chunk = rows.slice(i, i + PAGE);
+    const { error } = await supabase.from(table).insert(chunk);
+    if (error) {
+      console.error(`Supabase sync error (${table}):`, JSON.stringify(error));
+      throw error;
+    }
+    onProgress?.(Math.min(i + PAGE, rows.length), rows.length);
+  }
+}
+
+// ── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Fetch all user data from Supabase and UPSERT into local IndexedDB.
  * Existing local records (matched by syncId) are updated; new ones are inserted.
  * Local-only records (no syncId match on server) are left untouched.
  */
-export async function mergeFromSupabase(userId: string): Promise<void> {
-  const [{ data: sbLists, error: e1 }, { data: sbWords, error: e2 }, { data: sbRefs, error: e3 }] =
-    await Promise.all([
-      supabase.from('word_lists').select('*').eq('user_id', userId),
-      supabase.from('words').select('*').eq('user_id', userId),
-      supabase.from('word_refs').select('*').eq('user_id', userId),
-    ]);
-
-  if (e1 || e2 || e3) throw new Error(e1?.message ?? e2?.message ?? e3?.message ?? 'Fetch failed');
-  if (!sbLists || !sbWords || !sbRefs) throw new Error('No data returned');
+export async function mergeFromSupabase(
+  userId: string,
+  onProgress?: ProgressFn,
+): Promise<void> {
+  const [sbLists, sbWords, sbRefs] = await Promise.all([
+    fetchAllPages<Record<string, unknown>>('word_lists', userId),
+    fetchAllPages<Record<string, unknown>>('words', userId, n => onProgress?.(n, 0)),
+    fetchAllPages<Record<string, unknown>>('word_refs', userId),
+  ]);
 
   await db.transaction('rw', [db.wordLists, db.words, db.wordRefs], async () => {
     // ── Upsert word lists ──────────────────────────────────────────────────
     const listIdMap = new Map<string, number>(); // server uuid → local id
     for (const l of sbLists) {
-      const existing = await db.wordLists.where('syncId').equals(l.id).first();
+      const existing = await db.wordLists.where('syncId').equals(l.id as string).first();
       if (existing) {
         await db.wordLists.update(existing.id!, {
-          name: l.name,
-          description: l.description ?? undefined,
-          createdAt: new Date(l.created_at).getTime(),
+          name: l.name as string,
+          description: (l.description as string | null) ?? undefined,
+          createdAt: new Date(l.created_at as string).getTime(),
         });
-        listIdMap.set(l.id, existing.id!);
+        listIdMap.set(l.id as string, existing.id!);
       } else {
         const localId = (await db.wordLists.add({
-          name: l.name,
-          description: l.description ?? undefined,
-          createdAt: new Date(l.created_at).getTime(),
-          syncId: l.id,
+          name: l.name as string,
+          description: (l.description as string | null) ?? undefined,
+          createdAt: new Date(l.created_at as string).getTime(),
+          syncId: l.id as string,
         })) as number;
-        listIdMap.set(l.id, localId);
+        listIdMap.set(l.id as string, localId);
       }
     }
 
     // ── Upsert words ───────────────────────────────────────────────────────
     const wordIdMap = new Map<string, number>(); // server uuid → local id
     for (const w of sbWords) {
-      const existing = await db.words.where('syncId').equals(w.id).first();
+      const existing = await db.words.where('syncId').equals(w.id as string).first();
       if (existing) {
         await db.words.update(existing.id!, {
-          hanzi: w.hanzi,
-          pinyin: w.pinyin,
-          translation: w.translation,
-          confidence: w.confidence,
-          reviewCount: w.review_count,
-          notes: w.notes ?? undefined,
-          lastReviewed: w.last_reviewed ? new Date(w.last_reviewed).getTime() : undefined,
+          hanzi: w.hanzi as string,
+          pinyin: w.pinyin as string,
+          translation: w.translation as string,
+          confidence: w.confidence as number,
+          reviewCount: w.review_count as number,
+          notes: (w.notes as string | null) ?? undefined,
+          lastReviewed: w.last_reviewed ? new Date(w.last_reviewed as string).getTime() : undefined,
         });
-        wordIdMap.set(w.id, existing.id!);
+        wordIdMap.set(w.id as string, existing.id!);
       } else {
         const localId = (await db.words.add({
-          hanzi: w.hanzi,
-          pinyin: w.pinyin,
-          translation: w.translation,
-          confidence: w.confidence,
-          reviewCount: w.review_count,
-          notes: w.notes ?? undefined,
-          lastReviewed: w.last_reviewed ? new Date(w.last_reviewed).getTime() : undefined,
-          syncId: w.id,
+          hanzi: w.hanzi as string,
+          pinyin: w.pinyin as string,
+          translation: w.translation as string,
+          confidence: w.confidence as number,
+          reviewCount: w.review_count as number,
+          notes: (w.notes as string | null) ?? undefined,
+          lastReviewed: w.last_reviewed ? new Date(w.last_reviewed as string).getTime() : undefined,
+          syncId: w.id as string,
         })) as number;
-        wordIdMap.set(w.id, localId);
+        wordIdMap.set(w.id as string, localId);
       }
     }
 
     // ── Upsert word refs ───────────────────────────────────────────────────
     for (const r of sbRefs) {
-      const existing = r.id ? await db.wordRefs.where('syncId').equals(r.id).first() : undefined;
+      const existing = r.id ? await db.wordRefs.where('syncId').equals(r.id as string).first() : undefined;
       if (!existing) {
-        const localListId = listIdMap.get(r.list_id);
-        const localWordId = wordIdMap.get(r.word_id);
+        const localListId = listIdMap.get(r.list_id as string);
+        const localWordId = wordIdMap.get(r.word_id as string);
         if (localListId !== undefined && localWordId !== undefined) {
           const byIds = await db.wordRefs.where({ listId: localListId, wordId: localWordId }).first();
           if (!byIds) {
-            await db.wordRefs.add({ listId: localListId, wordId: localWordId, syncId: r.id });
+            await db.wordRefs.add({ listId: localListId, wordId: localWordId, syncId: r.id as string });
           } else if (!byIds.syncId) {
-            await db.wordRefs.update(byIds.id!, { syncId: r.id });
+            await db.wordRefs.update(byIds.id!, { syncId: r.id as string });
           }
         }
       }
@@ -95,16 +142,15 @@ export async function mergeFromSupabase(userId: string): Promise<void> {
  * Pull all user data from Supabase and OVERWRITE local IndexedDB completely.
  * Used for the "Pull from cloud" force-download action.
  */
-export async function overwriteLocalWithSupabase(userId: string): Promise<void> {
-  const [{ data: sbLists, error: e1 }, { data: sbWords, error: e2 }, { data: sbRefs, error: e3 }] =
-    await Promise.all([
-      supabase.from('word_lists').select('*').eq('user_id', userId),
-      supabase.from('words').select('*').eq('user_id', userId),
-      supabase.from('word_refs').select('*').eq('user_id', userId),
-    ]);
-
-  if (e1 || e2 || e3) throw new Error(e1?.message ?? e2?.message ?? e3?.message ?? 'Fetch failed');
-  if (!sbLists || !sbWords || !sbRefs) throw new Error('No data returned');
+export async function overwriteLocalWithSupabase(
+  userId: string,
+  onProgress?: ProgressFn,
+): Promise<void> {
+  const [sbLists, sbWords, sbRefs] = await Promise.all([
+    fetchAllPages<Record<string, unknown>>('word_lists', userId),
+    fetchAllPages<Record<string, unknown>>('words', userId, n => onProgress?.(n, 0)),
+    fetchAllPages<Record<string, unknown>>('word_refs', userId),
+  ]);
 
   await db.transaction('rw', [db.wordLists, db.words, db.wordRefs], async () => {
     await db.wordRefs.clear();
@@ -114,34 +160,34 @@ export async function overwriteLocalWithSupabase(userId: string): Promise<void> 
     const listIdMap = new Map<string, number>();
     for (const l of sbLists) {
       const localId = (await db.wordLists.add({
-        name: l.name,
-        description: l.description ?? undefined,
-        createdAt: new Date(l.created_at).getTime(),
-        syncId: l.id,
+        name: l.name as string,
+        description: (l.description as string | null) ?? undefined,
+        createdAt: new Date(l.created_at as string).getTime(),
+        syncId: l.id as string,
       })) as number;
-      listIdMap.set(l.id, localId);
+      listIdMap.set(l.id as string, localId);
     }
 
     const wordIdMap = new Map<string, number>();
     for (const w of sbWords) {
       const localId = (await db.words.add({
-        hanzi: w.hanzi,
-        pinyin: w.pinyin,
-        translation: w.translation,
-        confidence: w.confidence,
-        reviewCount: w.review_count,
-        notes: w.notes ?? undefined,
-        lastReviewed: w.last_reviewed ? new Date(w.last_reviewed).getTime() : undefined,
-        syncId: w.id,
+        hanzi: w.hanzi as string,
+        pinyin: w.pinyin as string,
+        translation: w.translation as string,
+        confidence: w.confidence as number,
+        reviewCount: w.review_count as number,
+        notes: (w.notes as string | null) ?? undefined,
+        lastReviewed: w.last_reviewed ? new Date(w.last_reviewed as string).getTime() : undefined,
+        syncId: w.id as string,
       })) as number;
-      wordIdMap.set(w.id, localId);
+      wordIdMap.set(w.id as string, localId);
     }
 
     for (const r of sbRefs) {
-      const localListId = listIdMap.get(r.list_id);
-      const localWordId = wordIdMap.get(r.word_id);
+      const localListId = listIdMap.get(r.list_id as string);
+      const localWordId = wordIdMap.get(r.word_id as string);
       if (localListId !== undefined && localWordId !== undefined) {
-        await db.wordRefs.add({ listId: localListId, wordId: localWordId, syncId: r.id });
+        await db.wordRefs.add({ listId: localListId, wordId: localWordId, syncId: r.id as string });
       }
     }
   });
@@ -152,7 +198,10 @@ export async function overwriteLocalWithSupabase(userId: string): Promise<void> 
  * deletes all user records in Supabase then re-inserts everything.
  * Assigns UUIDs (syncId) to local records that don't have one yet.
  */
-export async function pushToSupabase(userId: string): Promise<void> {
+export async function pushToSupabase(
+  userId: string,
+  onProgress?: ProgressFn,
+): Promise<void> {
   const lists = await db.wordLists.toArray();
   const words = await db.words.toArray();
   const refs = await db.wordRefs.toArray();
@@ -186,25 +235,23 @@ export async function pushToSupabase(userId: string): Promise<void> {
   await supabase.from('word_lists').delete().eq('user_id', userId);
 
   if (lists.length > 0) {
-    const { error } = await supabase.from('word_lists').insert(
+    await insertInChunks(
+      'word_lists',
       lists.map(l => ({
-        id: l.syncId,
+        id: l.syncId!,
         user_id: userId,
         name: l.name,
         description: l.description ?? null,
         created_at: new Date(l.createdAt).toISOString(),
       })),
     );
-    if (error) {
-      console.error('Supabase sync error (word_lists):', JSON.stringify(error));
-      throw error;
-    }
   }
 
   if (words.length > 0) {
-    const { error } = await supabase.from('words').insert(
+    await insertInChunks(
+      'words',
       words.map(w => ({
-        id: w.syncId,
+        id: w.syncId!,
         user_id: userId,
         hanzi: w.hanzi,
         pinyin: w.pinyin,
@@ -214,17 +261,14 @@ export async function pushToSupabase(userId: string): Promise<void> {
         notes: w.notes ?? null,
         last_reviewed: w.lastReviewed ? new Date(w.lastReviewed).toISOString() : null,
       })),
+      onProgress,
     );
-    if (error) {
-      console.error('Supabase sync error (words):', JSON.stringify(error));
-      throw error;
-    }
   }
 
   if (refs.length > 0) {
     const refsData = refs
       .map(r => ({
-        id: r.syncId,
+        id: r.syncId!,
         user_id: userId,
         list_id: listMap.get(r.listId),
         word_id: wordMap.get(r.wordId),
@@ -233,11 +277,7 @@ export async function pushToSupabase(userId: string): Promise<void> {
         !!r.list_id && !!r.word_id,
       );
     if (refsData.length > 0) {
-      const { error } = await supabase.from('word_refs').insert(refsData);
-      if (error) {
-        console.error('Supabase sync error (word_refs):', JSON.stringify(error));
-        throw error;
-      }
+      await insertInChunks('word_refs', refsData);
     }
   }
 }
@@ -247,7 +287,10 @@ export async function pushToSupabase(userId: string): Promise<void> {
  * Always pulls regardless of whether local DB is empty.
  * Used on login, session restore, "Sync now", and background sync.
  */
-export async function syncWithSupabase(userId: string): Promise<void> {
-  await mergeFromSupabase(userId);
-  await pushToSupabase(userId);
+export async function syncWithSupabase(
+  userId: string,
+  onProgress?: ProgressFn,
+): Promise<void> {
+  await mergeFromSupabase(userId, onProgress);
+  await pushToSupabase(userId, onProgress);
 }

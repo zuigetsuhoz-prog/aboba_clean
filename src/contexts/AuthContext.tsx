@@ -8,7 +8,7 @@ import {
 } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
-import { pushToSupabase, overwriteLocalWithSupabase, type SyncStatus } from '../sync';
+import { pushToSupabase, overwriteLocalWithSupabase, type SyncStatus, type SyncProgress } from '../sync';
 
 const LAST_SYNCED_KEY = 'lastSyncedAt';
 
@@ -16,6 +16,7 @@ interface AuthContextValue {
   user: User | null;
   authLoading: boolean;
   syncStatus: SyncStatus;
+  syncProgress: SyncProgress;
   lastSyncedAt: number | null;
   pushToCloud: () => Promise<void>;
   pullFromCloud: () => Promise<void>;
@@ -30,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [syncProgress, setSyncProgress] = useState<SyncProgress>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(() => {
     const stored = localStorage.getItem(LAST_SYNCED_KEY);
     return stored ? Number(stored) : null;
@@ -40,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(LAST_SYNCED_KEY, String(ts));
     setLastSyncedAt(ts);
     setSyncStatus('synced');
+    setSyncProgress(null);
   }, []);
 
   // Manual push: upload all local data to Supabase, overwriting cloud copy
@@ -48,11 +51,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!u) return;
     if (!navigator.onLine) { setSyncStatus('offline'); return; }
     setSyncStatus('syncing');
+    setSyncProgress(null);
     try {
-      await pushToSupabase(u.id);
+      await pushToSupabase(u.id, (loaded, total) => setSyncProgress({ loaded, total }));
       recordSync();
     } catch {
       setSyncStatus('error');
+      setSyncProgress(null);
     }
   }, [recordSync]);
 
@@ -62,11 +67,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!u) return;
     if (!navigator.onLine) { setSyncStatus('offline'); return; }
     setSyncStatus('syncing');
+    setSyncProgress(null);
     try {
-      await overwriteLocalWithSupabase(u.id);
+      await overwriteLocalWithSupabase(u.id, (loaded, total) => setSyncProgress({ loaded, total }));
       recordSync();
     } catch {
       setSyncStatus('error');
+      setSyncProgress(null);
     }
   }, [recordSync]);
 
@@ -99,10 +106,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSyncStatus('idle');
+    setSyncProgress(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, authLoading, syncStatus, lastSyncedAt, pushToCloud, pullFromCloud, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, authLoading, syncStatus, syncProgress, lastSyncedAt, pushToCloud, pullFromCloud, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

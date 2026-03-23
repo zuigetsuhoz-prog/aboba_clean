@@ -42,7 +42,7 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props) {
   const lang: Lang = settings.language ?? 'en';
   const t = useT(lang);
-  const { user, syncStatus, lastSyncedAt, pushToCloud, pullFromCloud, signOut } = useAuth();
+  const { user, syncStatus, syncProgress, lastSyncedAt, pushToCloud, pullFromCloud, signOut } = useAuth();
   const [pushing, setPushing] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [audioTesting, setAudioTesting] = useState(false);
@@ -367,12 +367,17 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
                     lastSyncedAt             ? 'text-green-600 dark:text-green-400' :
                     'text-gray-400'
                   }`}>
-                    {syncStatus === 'syncing' ? t.syncSyncing :
-                     syncStatus === 'error'   ? t.syncError :
-                     syncStatus === 'offline' ? t.syncOffline :
-                     lastSyncedAt
-                       ? `${t.lastSynced} ${new Date(lastSyncedAt).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' at')}`
-                       : t.neverSynced}
+                    {syncStatus === 'syncing'
+                      ? syncProgress && syncProgress.loaded > 0
+                        ? syncProgress.total > 0
+                          ? `${t.syncSyncing} ${syncProgress.loaded}/${syncProgress.total} words`
+                          : `${t.syncSyncing} ${syncProgress.loaded} words`
+                        : t.syncSyncing
+                      : syncStatus === 'error'   ? t.syncError
+                      : syncStatus === 'offline' ? t.syncOffline
+                      : lastSyncedAt
+                        ? `${t.lastSynced} ${new Date(lastSyncedAt).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' at')}`
+                        : t.neverSynced}
                   </p>
                 </div>
 
