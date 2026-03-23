@@ -305,3 +305,35 @@ export async function syncWithSupabase(
   await mergeFromSupabase(userId, onProgress);
   await pushToSupabase(userId, onProgress);
 }
+
+/**
+ * Fix sort_order for all words in Supabase.
+ * For each list, fetches words in local display order (sortOrder ?? id),
+ * reassigns sortOrder = 0,1,2,... locally, then upserts sort_order to Supabase.
+ */
+export async function fixWordOrderInSupabase(userId: string): Promise<void> {
+  const lists = await db.wordLists.toArray();
+
+  for (const list of lists) {
+    const refs = await db.wordRefs.where('listId').equals(list.id!).toArray();
+    refs.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+    const words = (await db.words.bulkGet(refs.map(r => r.wordId)))
+      .filter((w): w is NonNullable<typeof w> => w !== undefined);
+    words.sort((a, b) => (a.sortOrder ?? a.id ?? 0) - (b.sortOrder ?? b.id ?? 0));
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      if (word.sortOrder !== i) {
+        await db.words.update(word.id!, { sortOrder: i });
+        word.sortOrder = i;
+      }
+      if (word.syncId) {
+        await supabase
+          .from('words')
+          .update({ sort_order: i })
+          .eq('id', word.syncId)
+          .eq('user_id', userId);
+      }
+    }
+  }
+}
