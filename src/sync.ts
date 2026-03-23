@@ -54,7 +54,7 @@ export async function mergeFromSupabase(userId: string): Promise<void> {
           confidence: w.confidence,
           reviewCount: w.review_count,
           notes: w.notes ?? undefined,
-          lastReviewed: w.last_reviewed ?? undefined,
+          lastReviewed: w.last_reviewed ? new Date(w.last_reviewed).getTime() : undefined,
         });
         wordIdMap.set(w.id, existing.id!);
       } else {
@@ -65,7 +65,7 @@ export async function mergeFromSupabase(userId: string): Promise<void> {
           confidence: w.confidence,
           reviewCount: w.review_count,
           notes: w.notes ?? undefined,
-          lastReviewed: w.last_reviewed ?? undefined,
+          lastReviewed: w.last_reviewed ? new Date(w.last_reviewed).getTime() : undefined,
           syncId: w.id,
         })) as number;
         wordIdMap.set(w.id, localId);
@@ -131,7 +131,7 @@ export async function overwriteLocalWithSupabase(userId: string): Promise<void> 
         confidence: w.confidence,
         reviewCount: w.review_count,
         notes: w.notes ?? undefined,
-        lastReviewed: w.last_reviewed ?? undefined,
+        lastReviewed: w.last_reviewed ? new Date(w.last_reviewed).getTime() : undefined,
         syncId: w.id,
       })) as number;
       wordIdMap.set(w.id, localId);
@@ -196,7 +196,7 @@ export async function pushToSupabase(userId: string): Promise<void> {
       })),
     );
     if (error) {
-      console.error('Supabase sync error (word_lists):', error.message, error.details, error.hint);
+      console.error('Supabase sync error (word_lists):', JSON.stringify(error));
       throw error;
     }
   }
@@ -212,11 +212,11 @@ export async function pushToSupabase(userId: string): Promise<void> {
         confidence: w.confidence,
         review_count: w.reviewCount,
         notes: w.notes ?? null,
-        last_reviewed: w.lastReviewed ?? null,
+        last_reviewed: w.lastReviewed ? new Date(w.lastReviewed).toISOString() : null,
       })),
     );
     if (error) {
-      console.error('Supabase sync error (words):', error.message, error.details, error.hint);
+      console.error('Supabase sync error (words):', JSON.stringify(error));
       throw error;
     }
   }
@@ -235,7 +235,7 @@ export async function pushToSupabase(userId: string): Promise<void> {
     if (refsData.length > 0) {
       const { error } = await supabase.from('word_refs').insert(refsData);
       if (error) {
-        console.error('Supabase sync error (word_refs):', error.message, error.details, error.hint);
+        console.error('Supabase sync error (word_refs):', JSON.stringify(error));
         throw error;
       }
     }
