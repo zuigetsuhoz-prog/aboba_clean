@@ -140,6 +140,12 @@ export function SearchScreen({ lang, aiSettings, onOpenSettings }: Props) {
                         </span>
                       )}
                     </div>
+                    {word.reviewCount > 0 && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">🔁 {word.reviewCount} повторений</p>
+                    )}
+                    {word.notes && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">📝 {word.notes}</p>
+                    )}
 
                     {/* List badges — search-specific */}
                     {lists.length > 0 && (
