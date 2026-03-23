@@ -239,10 +239,10 @@ export async function pushToSupabase(
   const listMap = new Map(lists.map(l => [l.id!, l.syncId!]));
   const wordMap = new Map(words.map(w => [w.id!, w.syncId!]));
 
-  // Delete all existing user data in Supabase
-  await supabase.from('word_refs').delete().eq('user_id', userId);
+  // Delete all existing user data in Supabase (words first, then lists, then refs)
   await supabase.from('words').delete().eq('user_id', userId);
   await supabase.from('word_lists').delete().eq('user_id', userId);
+  await supabase.from('word_refs').delete().eq('user_id', userId);
 
   if (lists.length > 0) {
     await insertInChunks(
