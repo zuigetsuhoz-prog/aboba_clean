@@ -63,6 +63,7 @@ export function WordListDetail({ list, lang, onBack, aiSettings, onOpenSettings 
     else if (sortOpt === 'conf-desc') arr.sort((a, b) => b.confidence - a.confidence);
     else if (sortOpt === 'review-asc') arr.sort((a, b) => a.reviewCount - b.reviewCount);
     else if (sortOpt === 'review-desc') arr.sort((a, b) => b.reviewCount - a.reviewCount);
+    else arr.sort((a, b) => (a.sortOrder ?? a.id ?? 0) - (b.sortOrder ?? b.id ?? 0));
     return arr;
   }, [rawWords, sortOpt]);
 

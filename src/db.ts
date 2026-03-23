@@ -20,6 +20,7 @@ export interface Word {
   notes?: string;
   syncId?: string;
   createdAt?: number;
+  sortOrder?: number;
 }
 
 /** Junction table: which word belongs to which list */
@@ -103,7 +104,8 @@ export async function addWordToList(
   listId: number,
   data: Omit<Word, 'id'>,
 ): Promise<number> {
-  const wordId = (await db.words.add(data)) as number;
+  const sortOrder = data.sortOrder ?? (await db.wordRefs.where('listId').equals(listId).count());
+  const wordId = (await db.words.add({ ...data, sortOrder })) as number;
   await db.wordRefs.add({ listId, wordId });
   return wordId;
 }

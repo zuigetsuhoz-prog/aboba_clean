@@ -92,6 +92,7 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
             reviewCount: typeof w.reviewCount === 'number' ? w.reviewCount : 0,
             notes: w.notes || undefined,
             createdAt: importTimestamp + i,
+            sortOrder: i,
           })) as number;
           await db.wordRefs.add({ listId, wordId });
           totalWords++;

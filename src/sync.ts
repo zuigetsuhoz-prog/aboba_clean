@@ -14,6 +14,7 @@ async function fetchAllPages<T>(
   table: string,
   userId: string,
   onProgress?: (loaded: number) => void,
+  orderBy: string = 'id',
 ): Promise<T[]> {
   const all: T[] = [];
   let from = 0;
@@ -22,7 +23,7 @@ async function fetchAllPages<T>(
       .from(table)
       .select('*')
       .eq('user_id', userId)
-      .order('id')
+      .order(orderBy, { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) {
       console.error(`Fetch error at offset ${from} (${table}):`, JSON.stringify(error));
@@ -68,7 +69,7 @@ export async function mergeFromSupabase(
 ): Promise<void> {
   const [sbLists, sbWords, sbRefs] = await Promise.all([
     fetchAllPages<Record<string, unknown>>('word_lists', userId),
-    fetchAllPages<Record<string, unknown>>('words', userId, n => onProgress?.(n, 0)),
+    fetchAllPages<Record<string, unknown>>('words', userId, n => onProgress?.(n, 0), 'sort_order'),
     fetchAllPages<Record<string, unknown>>('word_refs', userId),
   ]);
 
@@ -108,6 +109,7 @@ export async function mergeFromSupabase(
           reviewCount: w.review_count as number,
           notes: (w.notes as string | null) ?? undefined,
           lastReviewed: w.last_reviewed ? new Date(w.last_reviewed as string).getTime() : undefined,
+          sortOrder: (w.sort_order as number | null) ?? undefined,
         });
         wordIdMap.set(w.id as string, existing.id!);
       } else {
@@ -120,6 +122,7 @@ export async function mergeFromSupabase(
           notes: (w.notes as string | null) ?? undefined,
           lastReviewed: w.last_reviewed ? new Date(w.last_reviewed as string).getTime() : undefined,
           syncId: w.id as string,
+          sortOrder: (w.sort_order as number | null) ?? undefined,
         })) as number;
         wordIdMap.set(w.id as string, localId);
       }
@@ -154,7 +157,7 @@ export async function overwriteLocalWithSupabase(
 ): Promise<void> {
   const [sbLists, sbWords, sbRefs] = await Promise.all([
     fetchAllPages<Record<string, unknown>>('word_lists', userId),
-    fetchAllPages<Record<string, unknown>>('words', userId, n => onProgress?.(n, 0)),
+    fetchAllPages<Record<string, unknown>>('words', userId, n => onProgress?.(n, 0), 'sort_order'),
     fetchAllPages<Record<string, unknown>>('word_refs', userId),
   ]);
 
@@ -185,6 +188,7 @@ export async function overwriteLocalWithSupabase(
         notes: (w.notes as string | null) ?? undefined,
         lastReviewed: w.last_reviewed ? new Date(w.last_reviewed as string).getTime() : undefined,
         syncId: w.id as string,
+        sortOrder: (w.sort_order as number | null) ?? undefined,
       })) as number;
       wordIdMap.set(w.id as string, localId);
     }
@@ -266,6 +270,7 @@ export async function pushToSupabase(
         review_count: w.reviewCount,
         notes: w.notes ?? null,
         last_reviewed: w.lastReviewed ? new Date(w.lastReviewed).toISOString() : null,
+        sort_order: w.sortOrder ?? 0,
       })),
       onProgress,
     );
