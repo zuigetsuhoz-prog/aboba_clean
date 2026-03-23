@@ -5,11 +5,95 @@ import { WordListDetail } from './WordListDetail';
 import { Modal } from '../components/Modal';
 import { useT } from '../i18n';
 import type { AISettings, Lang } from '../types';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface Props {
   aiSettings: AISettings;
   lang: Lang;
   onOpenSettings: () => void;
+}
+
+interface ItemProps {
+  list: WordList;
+  wordCount: number;
+  onSelect: (l: WordList) => void;
+  onDelete: (l: WordList) => void;
+  words: string;
+}
+
+function SortableListItem({ list, wordCount, onSelect, onDelete, words }: ItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: list.id! });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center px-4 py-3 bg-white dark:bg-gray-900
+                  border-b border-gray-100 dark:border-gray-800
+                  ${isDragging ? 'opacity-50 shadow-lg z-50 relative' : ''}`}
+      onClick={() => onSelect(list)}
+    >
+      {/* Drag handle */}
+      <span
+        {...attributes}
+        {...listeners}
+        onClick={e => e.stopPropagation()}
+        className="mr-3 text-gray-300 dark:text-gray-600 cursor-grab active:cursor-grabbing
+                   touch-none select-none text-xl leading-none shrink-0"
+        aria-label="Drag to reorder"
+      >
+        ⠿
+      </span>
+
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-gray-900 dark:text-white truncate">{list.name}</p>
+        {list.description && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{list.description}</p>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 ml-2 shrink-0">
+        <span className="text-sm text-gray-400 dark:text-gray-500">
+          {wordCount} {words}
+        </span>
+        <button
+          onClick={e => { e.stopPropagation(); onDelete(list); }}
+          className="w-7 h-7 flex items-center justify-center rounded-full
+                     text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+        >
+          🗑
+        </button>
+        <span className="text-gray-300 dark:text-gray-600">›</span>
+      </div>
+    </li>
+  );
 }
 
 export function ListsScreen({ aiSettings, lang, onOpenSettings }: Props) {
@@ -20,23 +104,63 @@ export function ListsScreen({ aiSettings, lang, onOpenSettings }: Props) {
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<WordList | null>(null);
+  const [items, setItems] = useState<WordList[]>([]);
 
-  const lists = useLiveQuery(() => db.wordLists.orderBy('createdAt').reverse().toArray(), []);
-  const [wordCounts, setWordCounts] = useState<Record<number, number>>({});
+  const dbLists = useLiveQuery(async () => {
+    const all = await db.wordLists.toArray();
+    return all.sort((a, b) => {
+      const aOrder = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return b.createdAt - a.createdAt;
+    });
+  }, []);
 
+  // Sync DB → local items (only when not mid-drag)
   useEffect(() => {
-    if (!lists) return;
+    if (dbLists) setItems(dbLists);
+  }, [dbLists]);
+
+  const [wordCounts, setWordCounts] = useState<Record<number, number>>({});
+  useEffect(() => {
+    if (!dbLists) return;
     Promise.all(
-      lists.map(l =>
+      dbLists.map(l =>
         db.wordRefs.where('listId').equals(l.id!).count()
           .then(c => [l.id!, c] as [number, number]),
       ),
     ).then(entries => setWordCounts(Object.fromEntries(entries)));
-  }, [lists]);
+  }, [dbLists]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 5 },
+    }),
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = items.findIndex(l => l.id === active.id);
+    const newIdx = items.findIndex(l => l.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const newItems = arrayMove(items, oldIdx, newIdx);
+    setItems(newItems);
+    await Promise.all(newItems.map((l, i) => db.wordLists.update(l.id!, { sortOrder: i })));
+  };
 
   const createList = async () => {
     if (!newName.trim()) return;
-    await db.wordLists.add({ name: newName.trim(), description: newDesc.trim(), createdAt: Date.now() });
+    const nextOrder = items.length > 0
+      ? Math.max(...items.map(l => l.sortOrder ?? 0)) + 1
+      : 0;
+    await db.wordLists.add({
+      name: newName.trim(),
+      description: newDesc.trim() || undefined,
+      createdAt: Date.now(),
+      sortOrder: nextOrder,
+    });
     setNewName(''); setNewDesc('');
     setShowCreate(false);
   };
@@ -73,45 +197,36 @@ export function ListsScreen({ aiSettings, lang, onOpenSettings }: Props) {
       </header>
 
       <div className="pb-6">
-        {!lists || lists.length === 0 ? (
+        {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center px-8">
             <p className="text-5xl mb-3">📝</p>
             <p className="text-gray-500 dark:text-gray-400 font-medium">{t.noListsTitle}</p>
             <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">{t.noListsHint}</p>
           </div>
         ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-800
-                         sm:grid sm:grid-cols-2 sm:divide-y-0 sm:gap-px sm:bg-gray-100 dark:sm:bg-gray-800
-                         lg:grid-cols-1 lg:gap-0 lg:bg-transparent dark:lg:bg-transparent lg:divide-y">
-            {lists.map(list => (
-              <li
-                key={list.id}
-                className="flex items-center px-4 py-3 bg-white dark:bg-gray-900
-                           sm:min-h-[72px] active:bg-gray-50 dark:active:bg-gray-800 cursor-pointer"
-                onClick={() => { setSelectedList(list); setView('detail'); }}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 dark:text-white truncate">{list.name}</p>
-                  {list.description && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{list.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 ml-2 shrink-0">
-                  <span className="text-sm text-gray-400 dark:text-gray-500">
-                    {wordCounts[list.id!] ?? 0} {t.words}
-                  </span>
-                  <button
-                    onClick={e => { e.stopPropagation(); setDeleteConfirm(list); }}
-                    className="w-7 h-7 flex items-center justify-center rounded-full
-                               text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                  >
-                    🗑
-                  </button>
-                  <span className="text-gray-300 dark:text-gray-600">›</span>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={items.map(l => l.id!)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul>
+                {items.map(list => (
+                  <SortableListItem
+                    key={list.id}
+                    list={list}
+                    wordCount={wordCounts[list.id!] ?? 0}
+                    words={t.words}
+                    onSelect={l => { setSelectedList(l); setView('detail'); }}
+                    onDelete={l => setDeleteConfirm(l)}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 

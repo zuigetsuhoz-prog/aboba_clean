@@ -6,6 +6,7 @@ export interface WordList {
   description?: string;
   createdAt: number;
   syncId?: string;
+  sortOrder?: number;
 }
 
 export interface Word {
@@ -63,6 +64,20 @@ export class ChineseDB extends Dexie {
       wordLists: '++id, name, createdAt, syncId',
       words: '++id, confidence, lastReviewed, syncId',
       wordRefs: '++id, listId, wordId, [listId+wordId], syncId',
+    });
+
+    // V4: add sortOrder for user-controlled list ordering
+    this.version(4).stores({
+      wordLists: '++id, name, createdAt, syncId, sortOrder',
+      words: '++id, confidence, lastReviewed, syncId',
+      wordRefs: '++id, listId, wordId, [listId+wordId], syncId',
+    }).upgrade(async tx => {
+      // Preserve existing order (newest first) as initial sortOrder
+      const lists = await tx.table('wordLists').toArray();
+      lists.sort((a: WordList, b: WordList) => b.createdAt - a.createdAt);
+      await Promise.all(lists.map((l: WordList, i: number) =>
+        tx.table('wordLists').update(l.id!, { sortOrder: i }),
+      ));
     });
   }
 }

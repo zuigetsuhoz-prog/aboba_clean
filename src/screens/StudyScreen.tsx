@@ -326,63 +326,63 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
           </h2>
           <div className="bg-white dark:bg-gray-800 rounded-xl p-3 space-y-3">
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+              <label className="flex-1 text-sm text-gray-700 dark:text-gray-300">
                 {t.startFromWord}
               </label>
               <input type="number" min="1" value={startFrom}
                 onChange={e => setStartFrom(e.target.value)}
                 placeholder="1"
-                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
+                className="w-24 shrink-0 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
                            focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+              <label className="flex-1 text-sm text-gray-700 dark:text-gray-300">
                 {t.numWords}
               </label>
               <input type="number" min="1" value={limitCount}
                 onChange={e => setLimitCount(e.target.value)}
                 placeholder="100"
-                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
+                className="w-24 shrink-0 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
                            focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+              <label className="flex-1 text-sm text-gray-700 dark:text-gray-300">
                 {t.pinyinStarts}
               </label>
               <input type="text" value={pinyinFilter}
                 onChange={e => setPinyinFilter(e.target.value)}
                 placeholder={t.pinyinPh}
-                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
+                className="w-24 shrink-0 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
                            focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+              <label className="flex-1 text-sm text-gray-700 dark:text-gray-300">
                 {t.maxConfidence}
               </label>
               <input type="number" min="0" max="100" value={maxConfidence}
                 onChange={e => setMaxConfidence(e.target.value)}
                 placeholder="100"
-                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
+                className="w-24 shrink-0 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
                            focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+              <label className="flex-1 text-sm text-gray-700 dark:text-gray-300">
                 {t.randomShuffle}
               </label>
               <Toggle on={shuffle} onToggle={() => setShuffle(s => !s)} />
             </div>
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0">
+              <label className="flex-1 text-sm text-gray-700 dark:text-gray-300">
                 {t.autoPlayAudio}
               </label>
               <Toggle on={autoPlay} onToggle={() => setAutoPlay(s => !s)} />
             </div>
             <div className="flex items-start gap-3">
-              <label className="text-sm text-gray-700 dark:text-gray-300 w-32 shrink-0 pt-1">
+              <label className="flex-1 text-sm text-gray-700 dark:text-gray-300 pt-1">
                 {t.startingFace}
               </label>
               <div className="flex gap-2 flex-wrap">
