@@ -22,14 +22,20 @@ async function fetchAllPages<T>(
       .from(table)
       .select('*')
       .eq('user_id', userId)
+      .order('id')
       .range(from, from + PAGE - 1);
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error(`Fetch error at offset ${from} (${table}):`, JSON.stringify(error));
+      throw new Error(error.message);
+    }
+    console.log(`Fetched ${data?.length ?? 0} rows from ${table} at offset ${from}`);
     if (!data || data.length === 0) break;
     all.push(...(data as T[]));
     onProgress?.(all.length);
     if (data.length < PAGE) break;
     from += PAGE;
   }
+  console.log(`Total fetched from ${table}:`, all.length);
   return all;
 }
 
