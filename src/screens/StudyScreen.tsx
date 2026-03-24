@@ -109,6 +109,9 @@ export function StudyScreen({ aiSettings, lang, onOpenSettings }: Props) {
     for (const [listId, subIndices] of subSelected) {
       if (subIndices.size === 0 || fullSelected.has(listId)) continue;
       const words = await getWordsForList(listId);
+      console.log('Before sort:', words.slice(0, 5).map(w => w.hanzi + ':' + (w.sortOrder ?? 'null')));
+      words.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      console.log('After sort:', words.slice(0, 5).map(w => w.hanzi + ':' + (w.sortOrder ?? 'null')));
       for (const idx of [...subIndices].sort((a, b) => a - b)) {
         const start = idx * SUBLIST_SIZE;
         const end = start + SUBLIST_SIZE;
