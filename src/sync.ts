@@ -262,10 +262,19 @@ export async function pushToSupabase(
 
   console.log('Delete complete, starting insert');
 
-  if (lists.length > 0) {
+  const uniqueLists = Array.from(new Map(lists.map(l => [l.syncId!, l])).values());
+  console.log('Total lists:', lists.length, 'After dedup:', uniqueLists.length);
+
+  const uniqueWords = Array.from(new Map(words.map(w => [w.syncId!, w])).values());
+  console.log('Total words:', words.length, 'After dedup:', uniqueWords.length);
+
+  const uniqueRefs = Array.from(new Map(refs.map(r => [r.syncId!, r])).values());
+  console.log('Total refs:', refs.length, 'After dedup:', uniqueRefs.length);
+
+  if (uniqueLists.length > 0) {
     await insertInChunks(
       'word_lists',
-      lists.map(l => ({
+      uniqueLists.map(l => ({
         id: l.syncId!,
         user_id: userId,
         name: l.name,
@@ -275,10 +284,10 @@ export async function pushToSupabase(
     );
   }
 
-  if (words.length > 0) {
+  if (uniqueWords.length > 0) {
     await insertInChunks(
       'words',
-      words.map(w => ({
+      uniqueWords.map(w => ({
         id: w.syncId!,
         user_id: userId,
         hanzi: w.hanzi,
@@ -294,8 +303,8 @@ export async function pushToSupabase(
     );
   }
 
-  if (refs.length > 0) {
-    const refsData = refs
+  if (uniqueRefs.length > 0) {
+    const refsData = uniqueRefs
       .map(r => ({
         id: r.syncId!,
         user_id: userId,
