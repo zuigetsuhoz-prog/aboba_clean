@@ -93,7 +93,9 @@ export async function getWordsForList(listId: number): Promise<Word[]> {
   if (refs.length === 0) return [];
   refs.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
   const words = await db.words.bulkGet(refs.map(r => r.wordId));
-  return words.filter((w): w is Word => w !== undefined);
+  const result = words.filter((w): w is Word => w !== undefined);
+  result.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  return result;
 }
 
 export async function getWordCountForList(listId: number): Promise<number> {
