@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { db, getWordsForList } from '../db';
-import { fixWordOrderInSupabase } from '../sync';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { playTTS } from '../utils/tts';
 import { useT } from '../i18n';
@@ -46,8 +45,6 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
   const { user, syncStatus, syncProgress, lastSyncedAt, pushToCloud, pullFromCloud, signOut } = useAuth();
   const [pushing, setPushing] = useState(false);
   const [pulling, setPulling] = useState(false);
-  const [fixingOrder, setFixingOrder] = useState(false);
-  const [fixOrderStatus, setFixOrderStatus] = useState('');
   const [audioTesting, setAudioTesting] = useState(false);
   const [audioTestResult, setAudioTestResult] = useState('');
   const [importStatus, setImportStatus] = useState('');
@@ -424,43 +421,6 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
                   >
                     {pulling ? t.syncSyncing : '↓ ' + t.pullFromCloud}
                   </button>
-                </div>
-
-                {/* Fix word order */}
-                <div className="px-4 py-3">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-0.5">
-                    {lang === 'ru' ? 'Исправить порядок слов' : 'Fix word order'}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                    {lang === 'ru'
-                      ? 'Обновить sort_order в Supabase по локальному порядку слов'
-                      : 'Re-sync sort_order to Supabase based on local word order'}
-                  </p>
-                  <button
-                    onClick={async () => {
-                      setFixingOrder(true);
-                      setFixOrderStatus('');
-                      try {
-                        await fixWordOrderInSupabase(user!.id);
-                        setFixOrderStatus('✓ Fixed!');
-                      } catch {
-                        setFixOrderStatus('✗ Error');
-                      } finally {
-                        setFixingOrder(false);
-                        setTimeout(() => setFixOrderStatus(''), 4000);
-                      }
-                    }}
-                    disabled={fixingOrder || pushing || pulling || syncStatus === 'syncing'}
-                    className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
-                               text-sm rounded-lg disabled:opacity-40 active:scale-95 transition-transform"
-                  >
-                    {fixingOrder ? '⏳ Fixing...' : '⟳ ' + (lang === 'ru' ? 'Исправить' : 'Fix order')}
-                  </button>
-                  {fixOrderStatus && (
-                    <p className={`mt-1.5 text-sm ${fixOrderStatus.startsWith('✓') ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                      {fixOrderStatus}
-                    </p>
-                  )}
                 </div>
 
                 {/* Sign out */}
