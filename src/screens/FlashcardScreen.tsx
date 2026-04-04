@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { db, type Word, calcConfidence, type RatingKey } from '../db';
+import { db, type Word, calcConfidence, type RatingKey, logStudyWord } from '../db';
 import { AIModal } from '../components/AIModal';
 import { Modal } from '../components/Modal';
 import { playTTS, cancelTTS } from '../utils/tts';
@@ -174,6 +174,8 @@ export function FlashcardScreen({ words: initialWords, lang, onExit, aiSettings,
     });
     setWords(prev => prev.map((w, i) =>
       i === currentIndex ? { ...w, confidence: newConfidence, reviewCount: prevReviewCount + 1 } : w));
+
+    await logStudyWord();
 
     setRatingFeedback(label);
     const hist: CardHistoryEntry = {

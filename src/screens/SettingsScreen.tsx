@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { db, getWordsForList } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { playTTS } from '../utils/tts';
@@ -52,10 +52,20 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const lists = useLiveQuery(() => db.wordLists.orderBy('name').toArray(), []);
+  const [dailyGoal, setDailyGoalState] = useState<number>(() => {
+    const stored = localStorage.getItem('dailyGoal');
+    return stored ? Math.max(1, parseInt(stored, 10)) || 50 : 50;
+  });
 
   const updateAI = (updates: Partial<AISettings>) => {
     onUpdateSettings({ ai: { ...settings.ai, ...updates } });
   };
+
+  const handleDailyGoalChange = useCallback((val: number) => {
+    const clamped = Math.max(1, val);
+    setDailyGoalState(clamped);
+    localStorage.setItem('dailyGoal', String(clamped));
+  }, []);
 
   // ── Import ────────────────────────────────────────────────────────────────
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -185,6 +195,27 @@ export function SettingsScreen({ settings, onUpdateSettings, onShowAuth }: Props
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Study / Daily Goal */}
+        <section className="px-4 xl:px-0">
+          <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+            {t.dailyGoalSetting}
+          </h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl px-4 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-gray-900 dark:text-white font-medium">{t.dailyGoalSetting}</span>
+              <input
+                type="number"
+                min={1}
+                value={dailyGoal}
+                onChange={e => handleDailyGoalChange(parseInt(e.target.value, 10) || 1)}
+                className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg
+                           bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm text-right
+                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
           </div>
         </section>

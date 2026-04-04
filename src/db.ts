@@ -31,10 +31,18 @@ export interface WordRef {
   syncId?: string;
 }
 
+export interface StudyLog {
+  id?: number;
+  date: string;        // "YYYY-MM-DD"
+  wordsStudied: number;
+  timestamp: number;   // Date.now()
+}
+
 export class ChineseDB extends Dexie {
   wordLists!: Table<WordList>;
   words!: Table<Word>;
   wordRefs!: Table<WordRef>;
+  studyLog!: Table<StudyLog>;
 
   constructor() {
     super('ChineseLearningDB');
@@ -80,6 +88,14 @@ export class ChineseDB extends Dexie {
       await Promise.all(lists.map((l: WordList, i: number) =>
         tx.table('wordLists').update(l.id!, { sortOrder: i }),
       ));
+    });
+
+    // V5: add studyLog table for statistics tracking
+    this.version(5).stores({
+      wordLists: '++id, name, createdAt, syncId, sortOrder',
+      words: '++id, confidence, lastReviewed, syncId',
+      wordRefs: '++id, listId, wordId, [listId+wordId], syncId',
+      studyLog: '++id, date, timestamp',
     });
   }
 }
@@ -139,6 +155,20 @@ export async function deleteList(listId: number): Promise<void> {
     if (count === 0) await db.words.delete(ref.wordId);
   }
   await db.wordLists.delete(listId);
+}
+
+/** Record one word rated — upserts today's studyLog entry */
+export async function logStudyWord(): Promise<void> {
+  const date = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const existing = await db.studyLog.where('date').equals(date).first();
+  if (existing?.id !== undefined) {
+    await db.studyLog.update(existing.id, {
+      wordsStudied: existing.wordsStudied + 1,
+      timestamp: Date.now(),
+    });
+  } else {
+    await db.studyLog.add({ date, wordsStudied: 1, timestamp: Date.now() });
+  }
 }
 
 /** Normalize pinyin by stripping tone diacritics for comparison */

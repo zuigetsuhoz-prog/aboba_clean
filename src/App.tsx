@@ -4,6 +4,7 @@ import { ListsScreen } from './screens/ListsScreen';
 import { StudyScreen } from './screens/StudyScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SearchScreen } from './screens/SearchScreen';
+import { StatisticsScreen } from './screens/StatisticsScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useSettings } from './hooks/useSettings';
@@ -26,6 +27,7 @@ function SidebarNav({
     { id: 'lists',    label: t.tabLists,    icon: '📚' },
     { id: 'study',    label: t.tabStudy,    icon: '🎴' },
     { id: 'search',   label: t.tabSearch,   icon: '🔍' },
+    { id: 'stats',    label: t.tabStats,    icon: '📊' },
     { id: 'settings', label: t.tabSettings, icon: '⚙️' },
   ];
   return (
@@ -96,6 +98,9 @@ function AppContent() {
       )}
       {activeTab === 'search' && (
         <SearchScreen lang={lang} aiSettings={settings.ai} onOpenSettings={handleOpenSettings} />
+      )}
+      {activeTab === 'stats' && (
+        <StatisticsScreen lang={lang} />
       )}
       {activeTab === 'settings' && (
         <SettingsScreen settings={settings} onUpdateSettings={updateSettings} onShowAuth={() => setShowAuth(true)} />

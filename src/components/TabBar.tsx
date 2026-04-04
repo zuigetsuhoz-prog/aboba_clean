@@ -13,6 +13,7 @@ export function TabBar({ active, onSelect, lang }: Props) {
     { id: 'lists',    label: t.tabLists,    icon: '📚' },
     { id: 'study',    label: t.tabStudy,    icon: '🎴' },
     { id: 'search',   label: t.tabSearch,   icon: '🔍' },
+    { id: 'stats',    label: t.tabStats,    icon: '📊' },
     { id: 'settings', label: t.tabSettings, icon: '⚙️' },
   ];
 

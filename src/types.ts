@@ -1,7 +1,7 @@
 import type { Word } from './db';
 import type { Lang } from './i18n';
 
-export type Tab = 'lists' | 'study' | 'settings' | 'search';
+export type Tab = 'lists' | 'study' | 'search' | 'stats' | 'settings';
 
 export type CardSide = 0 | 1 | 2; // 0=hanzi, 1=pinyin, 2=translation
 
